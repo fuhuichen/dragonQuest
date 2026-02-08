@@ -44,7 +44,7 @@ window.GameData.GAME_CONFIG = {
     'darkream': ['orc', 'orc'],
   },
   // 測試模式配置
-  testMode: true, // 測試模式開關
+  testMode: false, // 測試模式開關
   testModeCompanionLevel: 30, // 測試模式下同伴加入時的等級
   testModeAllowAdvancement: true, // 測試模式下是否允許職業進階
 };
