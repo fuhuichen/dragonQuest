@@ -1,0 +1,2917 @@
+(() => {
+const SKILL_CHAINS = [
+  // 劍技 - 單體（5階段）
+  {
+    flow: 'sword',
+    id: 'sword_single',
+    aoe: false,
+    steps: [
+      {
+        id: 'slash_1',
+        tier: 1,
+        name: '斬擊 I',
+        description: '單體物理傷害。',
+        kind: 'attack',
+        power: 6, // 加權值
+        mpCost: 1,
+        requiredLevel: 0,
+        critChance: 0,
+      },
+      {
+        id: 'slash_2',
+        tier: 2,
+        name: '斬擊 II',
+        description: '單體物理傷害（強化）。',
+        kind: 'attack',
+        power: 25,
+        mpCost: 5,
+        requiredLevel: 10,
+        critChance: 0,
+      },
+      {
+        id: 'slash_3',
+        tier: 3,
+        name: '斬擊 III',
+        description: '單體物理傷害（進階）。',
+        kind: 'attack',
+        power: 60,
+        mpCost: 9,
+        requiredLevel: 20,
+        critChance: 0,
+      },
+      {
+        id: 'slash_4',
+        tier: 4,
+        name: '斬擊 IV',
+        description: '單體物理傷害（精通）。',
+        kind: 'attack',
+        power: 100,
+        mpCost: 15,
+        requiredLevel: 30,
+        critChance: 0,
+      },
+      {
+        id: 'slash_5',
+        tier: 5,
+        name: '斬擊 V',
+        description: '單體物理傷害（大師）。',
+        kind: 'attack',
+        power: 150,
+        mpCost: 22,
+        requiredLevel: 40,
+        critChance: 0,
+      },
+    ],
+  },
+  // 勇者專用技 - 單體（6階段）：攻擊力 + 魔力 × 比例
+  {
+    flow: 'hero',
+    id: 'hero_strike',
+    aoe: false,
+    steps: [
+      {
+        id: 'hero_strike_1',
+        tier: 1,
+        name: '閃電斬',
+        description: '單體傷害：全能力之和x25%。',
+        kind: 'attack',
+        power: 5,
+        mpCost: 3,
+        requiredLevel: 0,
+        critChance: 0,
+        allAttributesRatio: 0.25, // 全屬性比例
+      }
+    ],
+  },
+  // 劍技 - 全體（3階段）
+  {
+    flow: 'sword',
+    id: 'sword_aoe',
+    aoe: true,
+    steps: [
+      {
+        id: 'sword_wave_1',
+        tier: 1,
+        name: '劍氣斬 I',
+        description: '攻擊所有敵人。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 10,
+        requiredLevel: 10,
+        critChance: 0,
+      },
+      {
+        id: 'sword_wave_2',
+        tier: 2,
+        name: '劍氣斬 II',
+        description: '攻擊所有敵人（強化）。',
+        kind: 'attack',
+        power: 20,
+        mpCost: 15,
+        requiredLevel: 20,
+        critChance: 0,
+      },
+      {
+        id: 'sword_wave_3',
+        tier: 3,
+        name: '劍氣斬 III',
+        description: '攻擊所有敵人（大師）。',
+        kind: 'attack',
+        power: 60,
+        mpCost: 30,
+        requiredLevel: 30,
+        critChance: 0,
+      },
+    ],
+  },
+  // 補血 - 單體（5階段）
+  {
+    flow: 'recovery',
+    id: 'heal_single',
+    aoe: false,
+    steps: [
+      {
+        id: 'heal_1',
+        tier: 1,
+        name: '治療術 I',
+        description: '單體回復。',
+        kind: 'heal',
+        power: 10,
+        mpCost: 3,
+        requiredLevel: 0,
+      },
+      {
+        id: 'heal_2',
+        tier: 2,
+        name: '治療術 II',
+        description: '單體回復（強化）。',
+        kind: 'heal',
+        power: 50,
+        mpCost: 6,
+        requiredLevel: 10,
+      },
+      {
+        id: 'heal_3',
+        tier: 3,
+        name: '治療術 III',
+        description: '單體回復（進階）。',
+        kind: 'heal',
+        power: 100,
+        mpCost: 14,
+        requiredLevel: 20,
+      },
+      {
+        id: 'heal_4',
+        tier: 4,
+        name: '治療術 IV',
+        description: '單體回復（精通）。',
+        kind: 'heal',
+        power: 200,
+        mpCost: 20,
+        requiredLevel: 30,
+      },
+      {
+        id: 'heal_5',
+        tier: 5,
+        name: '治療術 V',
+        description: '單體回復（大師）。',
+        kind: 'heal',
+        power: 400,
+        mpCost: 28,
+        requiredLevel: 40,
+      },
+    ],
+  },
+  // 補血 - 全體（3階段）
+  {
+    flow: 'recovery',
+    id: 'heal_aoe',
+    aoe: true,
+    steps: [
+      {
+        id: 'mass_heal_1',
+        tier: 1,
+        name: '群體治療 I',
+        description: '回復所有友方。',
+        kind: 'heal',
+        power: 15,
+        mpCost: 10,
+        requiredLevel: 10,
+      },
+      {
+        id: 'mass_heal_2',
+        tier: 2,
+        name: '群體治療 II',
+        description: '回復所有友方（強化）。',
+        kind: 'heal',
+        power: 30,
+        mpCost: 20,
+        requiredLevel: 20,
+      },
+      {
+        id: 'mass_heal_3',
+        tier: 3,
+        name: '群體治療 III',
+        description: '回復所有友方（大師）。',
+        kind: 'heal',
+        power: 60,
+        mpCost: 30,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 復活技能 - 勇者專用（20級自動習得）
+  {
+    flow: 'recovery',
+    id: 'hero_revive',
+    aoe: false,
+    steps: [
+      {
+        id: 'revive_companion',
+        tier: 1,
+        name: '復活術',
+        description: '復活一個同伴，回復30%的最大HP。',
+        kind: 'heal',
+        power: 0, // 不使用power，使用固定30%HP回復
+        mpCost: 20,
+        requiredLevel: 20,
+        critChance: 0,
+        revivePercent: 0.3, // 復活時回復30%最大HP
+      },
+    ],
+  },
+  // 防護罩 - 單體（3階段）
+  {
+    flow: 'recovery',
+    id: 'shield_single',
+    aoe: false,
+    steps: [
+      {
+        id: 'shield_1',
+        tier: 1,
+        name: '防護罩 I',
+        description: '為單體友方提供護盾，吸收傷害。',
+        kind: 'support',
+        power: 10, // 護盾值 = power + 回復力/2
+        mpCost: 5,
+        requiredLevel: 5,
+      },
+      {
+        id: 'shield_2',
+        tier: 2,
+        name: '防護罩 II',
+        description: '為單體友方提供護盾（強化）。',
+        kind: 'support',
+        power: 30,
+        mpCost: 10,
+        requiredLevel: 15,
+      },
+      {
+        id: 'shield_3',
+        tier: 3,
+        name: '防護罩 III',
+        description: '為單體友方提供護盾（大師）。',
+        kind: 'support',
+        power: 50,
+        mpCost: 18,
+        requiredLevel: 25,
+      },
+    ],
+  },
+  // 全體防護罩 - 全體（3階段）
+  {
+    flow: 'recovery',
+    id: 'shield_aoe',
+    aoe: true,
+    steps: [
+      {
+        id: 'mass_shield_1',
+        tier: 1,
+        name: '全體防護罩 I',
+        description: '為所有友方提供護盾，吸收傷害。',
+        kind: 'support',
+        power: 0, // 全體護盾值較低
+        mpCost: 20,
+        requiredLevel: 20,
+      },
+      {
+        id: 'mass_shield_2',
+        tier: 2,
+        name: '全體防護罩 II',
+        description: '為所有友方提供護盾（強化）。',
+        kind: 'support',
+        power: 10,
+        mpCost: 30,
+        requiredLevel: 32,
+      },
+      {
+        id: 'mass_shield_3',
+        tier: 3,
+        name: '全體防護罩 III',
+        description: '為所有友方提供護盾（大師）。',
+        kind: 'support',
+        power: 30,
+        mpCost: 40,
+        requiredLevel: 45,
+      },
+    ],
+  },
+  // 淨化 - 單體（1階段）
+  {
+    flow: 'recovery',
+    id: 'purify_single',
+    aoe: false,
+    steps: [
+      {
+        id: 'purify_1',
+        tier: 1,
+        name: '淨化',
+        description: '解除單體友方的所有debuff狀態。',
+        kind: 'support',
+        mpCost: 5,
+        requiredLevel: 5,
+      },
+    ],
+  },
+  // 全體淨化 - 全體（1階段）
+  {
+    flow: 'recovery',
+    id: 'purify_aoe',
+    aoe: true,
+    steps: [
+      {
+        id: 'mass_purify_1',
+        tier: 1,
+        name: '全體淨化',
+        description: '解除所有友方的所有debuff狀態。',
+        kind: 'support',
+        mpCost: 15,
+        requiredLevel: 15,
+      },
+    ],
+  },
+  // 補血 - 單體強化（6階段，回復力1/2）
+  {
+    flow: 'recovery',
+    id: 'heal_enhanced',
+    aoe: false,
+    steps: [
+      {
+        id: 'enhanced_heal_1',
+        tier: 1,
+        name: '聖擊 I',
+        description: '對敵人造成固定傷害，並回復自己1/2治療能力的HP。',
+        kind: 'attack',
+        power: 15,
+        mpCost: 4,
+        requiredLevel: 0,
+      },
+      {
+        id: 'enhanced_heal_2',
+        tier: 2,
+        name: '聖擊 II',
+        description: '對敵人造成固定傷害，並回復自己1/2治療能力的HP。',
+        kind: 'attack',
+        power: 40,
+        mpCost: 8,
+        requiredLevel: 10,
+      },
+      {
+        id: 'enhanced_heal_3',
+        tier: 3,
+        name: '聖擊 III',
+        description: '對敵人造成固定傷害，並回復自己1/2治療能力的HP。',
+        kind: 'attack',
+        power: 80,
+        mpCost: 12,
+        requiredLevel: 20,
+      },
+      {
+        id: 'enhanced_heal_4',
+        tier: 4,
+        name: '聖擊 IV',
+        description: '對敵人造成固定傷害，並回復自己1/2治療能力的HP。',
+        kind: 'attack',
+        power: 160,
+        mpCost: 18,
+        requiredLevel: 30,
+      },
+      {
+        id: 'enhanced_heal_5',
+        tier: 5,
+        name: '聖擊 V',
+        description: '對敵人造成固定傷害，並回復自己1/2治療能力的HP。',
+        kind: 'attack',
+        power: 300,
+        mpCost: 25,
+        requiredLevel: 40,
+      },
+      {
+        id: 'enhanced_heal_6',
+        tier: 6,
+        name: '聖擊 VI',
+        description: '對敵人造成固定傷害，並回復自己1/2治療能力的HP。',
+        kind: 'attack',
+        power: 320,
+        mpCost: 32,
+        requiredLevel: 50,
+      },
+    ],
+  },
+  // 魔法 - 單體火魔法（5階段）
+  {
+    flow: 'magic',
+    id: 'fire_single',
+    aoe: false,
+    steps: [
+      {
+        id: 'fireball_1',
+        tier: 1,
+        name: '火球 I',
+        description: '單體火魔法傷害 有20%機率暴擊。',
+        kind: 'attack',
+        power: 10, // 固定值
+        mpCost: 2,
+        requiredLevel: 0,
+        critChance: 20,
+      },
+      {
+        id: 'fireball_2',
+        tier: 2,
+        name: '火球 II',
+        description: '單體火魔法傷害（強化） 有20%機率暴擊。',
+        kind: 'attack',
+        power: 30,
+        mpCost: 6,
+        requiredLevel: 10,
+        critChance: 20,
+      },
+      {
+        id: 'fireball_3',
+        tier: 3,
+        name: '火球 III',
+        description: '單體火魔法傷害（進階） 有25%機率暴擊。',
+        kind: 'attack',
+        power: 80,
+        mpCost: 12,
+        requiredLevel: 20,
+        critChance: 25,
+      },
+      {
+        id: 'fireball_4',
+        tier: 4,
+        name: '火球 IV',
+        description: '單體火魔法傷害（精通） 有25%機率暴擊 有30%機率造成1.5倍傷害。',
+        kind: 'attack',
+        power: 120,
+        mpCost: 18,
+        requiredLevel: 30,
+        critChance: 25,
+      },
+      {
+        id: 'fireball_5',
+        tier: 5,
+        name: '火球 V',
+        description: '單體火魔法傷害（大師） 有30%機率暴擊 有30%機率造成1.5倍傷害。',
+        kind: 'attack',
+        power: 200,
+        mpCost: 25,
+        requiredLevel: 40,
+        critChance: 30,
+      },
+    ],
+  },
+  // 魔法 - 單體冰魔法（5階段）
+  {
+    flow: 'magic',
+    id: 'ice_single',
+    aoe: false,
+    steps: [
+      {
+        id: 'iceball_1',
+        tier: 1,
+        name: '冰球 I',
+        description: '單體冰魔法傷害，造成兩回合減速（減少1/4速度）。',
+        kind: 'attack',
+        power: 20, // 固定值
+        mpCost: 5,
+        requiredLevel: 5,
+        critChance: 0,
+        slowDuration: 2, // 持續2回合
+        slowRatio: 0.25, // 減少1/4速度
+      },
+      {
+        id: 'iceball_2',
+        tier: 2,
+        name: '冰球 II',
+        description: '單體冰魔法傷害（強化），造成兩回合減速（減少1/4速度）。',
+        kind: 'attack',
+        power: 60,
+        mpCost: 10,
+        requiredLevel: 14,
+        critChance: 0,
+        slowDuration: 2,
+        slowRatio: 0.25,
+      },
+      {
+        id: 'iceball_3',
+        tier: 3,
+        name: '冰球 III',
+        description: '單體冰魔法傷害（進階），造成兩回合減速（減少1/4速度）。',
+        kind: 'attack',
+        power: 150,
+        mpCost: 20,
+        requiredLevel: 24,
+        critChance: 0,
+        slowDuration: 2,
+        slowRatio: 0.25,
+      },
+      {
+        id: 'iceball_4',
+        tier: 4,
+        name: '冰球 IV',
+        description: '單體冰魔法傷害（精通），造成兩回合減速（減少1/4速度）。',
+        kind: 'attack',
+        power: 250,
+        mpCost: 30,
+        requiredLevel: 34,
+        critChance: 0,
+        slowDuration: 2,
+        slowRatio: 0.25,
+      },
+      {
+        id: 'iceball_5',
+        tier: 5,
+        name: '冰球 V',
+        description: '單體冰魔法傷害（大師），造成兩回合減速（減少1/速度）。',
+        kind: 'attack',
+        power: 400,
+        mpCost: 30,
+        requiredLevel: 44,
+        critChance: 0,
+        slowDuration: 2,
+        slowRatio: 0.25,
+      },
+    ],
+  },
+  // 魔法 - 單體酸性魔法（5階段，減少防守值）
+  {
+    flow: 'magic',
+    id: 'acid_single',
+    aoe: false,
+    steps: [
+      {
+        id: 'acid_arrow_1',
+        tier: 1,
+        name: '酸性箭 I',
+        description: '單體魔法傷害，造成兩回合減防（減少1/4防守值）。',
+        kind: 'attack',
+        power: 20, // 固定值
+        mpCost: 5,
+        requiredLevel: 5,
+        critChance: 0,
+        defenseDownDuration: 2, // 持續2回合
+        defenseDownRatio: 0.25, // 減少1/4防守值
+      },
+      {
+        id: 'acid_arrow_2',
+        tier: 2,
+        name: '酸性箭 II',
+        description: '單體魔法傷害（強化），造成兩回合減防（減少1/4防守值）。',
+        kind: 'attack',
+        power: 60,
+        mpCost: 10,
+        requiredLevel: 14,
+        critChance: 0,
+        defenseDownDuration: 2,
+        defenseDownRatio: 0.25,
+      },
+      {
+        id: 'acid_arrow_3',
+        tier: 3,
+        name: '酸性箭 III',
+        description: '單體魔法傷害（進階），造成兩回合減防（減少1/4防守值）。',
+        kind: 'attack',
+        power: 150,
+        mpCost: 20,
+        requiredLevel: 24,
+        critChance: 0,
+        defenseDownDuration: 2,
+        defenseDownRatio: 0.25,
+      },
+      {
+        id: 'acid_arrow_4',
+        tier: 4,
+        name: '酸性箭 IV',
+        description: '單體魔法傷害（精通），造成兩回合減防（減少1/4防守值）。',
+        kind: 'attack',
+        power: 250,
+        mpCost: 30,
+        requiredLevel: 34,
+        critChance: 0,
+        defenseDownDuration: 2,
+        defenseDownRatio: 0.25,
+      },
+      {
+        id: 'acid_arrow_5',
+        tier: 5,
+        name: '酸性箭 V',
+        description: '單體魔法傷害（大師），造成兩回合減防（減少1/4防守值）。',
+        kind: 'attack',
+        power: 400,
+        mpCost: 30,
+        requiredLevel: 44,
+        critChance: 0,
+        defenseDownDuration: 2,
+        defenseDownRatio: 0.25,
+      },
+    ],
+  },
+  // 魔法 - 閃電鏈（單體，可彈跳）
+  {
+    flow: 'magic',
+    id: 'lightning_chain',
+    aoe: false,
+    steps: [
+      {
+        id: 'lightning_chain_1',
+        tier: 1,
+        name: '閃電鏈 I',
+        description: '對目標造成魔法傷害，然後彈跳到另一個隨機敵人，造成80%傷害。',
+        kind: 'attack',
+        power: 15,
+        mpCost: 6,
+        requiredLevel: 12,
+        chainDamage: true, // 標記為連鎖技能
+        chainRatio: 0.8, // 連鎖傷害為原本的80%
+      },
+      {
+        id: 'lightning_chain_2',
+        tier: 2,
+        name: '閃電鏈 II',
+        description: '對目標造成魔法傷害，然後彈跳到另一個隨機敵人，造成80%傷害（強化）。',
+        kind: 'attack',
+        power: 40,
+        mpCost: 12,
+        requiredLevel: 22,
+        chainDamage: true,
+        chainRatio: 0.8,
+      },
+      {
+        id: 'lightning_chain_3',
+        tier: 3,
+        name: '閃電鏈 III',
+        description: '對目標造成魔法傷害，然後彈跳到另一個隨機敵人，造成80%傷害（進階）。',
+        kind: 'attack',
+        power: 100,
+        mpCost: 20,
+        requiredLevel: 32,
+        chainDamage: true,
+        chainRatio: 0.8,
+      },
+    ],
+  },
+  // 魔法 - 全體爆炸魔法（3階段）
+  {
+    flow: 'magic',
+    id: 'fire_aoe',
+    aoe: true,
+    steps: [
+      {
+        id: 'explosion_1',
+        tier: 1,
+        name: '爆炸魔法 I',
+        description: '攻擊所有敵人。',
+        kind: 'attack',
+        power: 20,
+        mpCost: 10,
+        requiredLevel: 15,
+        critChance: 0,
+      },
+      {
+        id: 'explosion_2',
+        tier: 2,
+        name: '爆炸魔法 II',
+        description: '攻擊所有敵人（強化）。',
+        kind: 'attack',
+        power: 40,
+        mpCost: 20,
+        requiredLevel: 30,
+        critChance: 0,
+      },
+      {
+        id: 'explosion_3',
+        tier: 3,
+        name: '爆炸魔法 III',
+        description: '攻擊所有敵人（大師）。',
+        kind: 'attack',
+        power: 70,
+        mpCost: 30,
+        requiredLevel: 45,
+        critChance: 0,
+      },
+    ],
+  },
+  // 敏捷技 - 隨機攻擊多次（5階段）
+  {
+    flow: 'sword',
+    id: 'multi_hit',
+    aoe: false,
+    steps: [
+      {
+        id: 'rapid_strike_1',
+        tier: 1,
+        name: '多重斬擊 I',
+        description: '隨機攻擊2次 有10%機率暴擊。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 5,
+        requiredLevel: 0,
+        hitCount: 2,
+        critChance: 0.1,
+      },
+      {
+        id: 'rapid_strike_2',
+        tier: 2,
+        name: '多重斬擊 II',
+        description: '隨機攻擊3次 有10%機率暴擊。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 10,
+        requiredLevel: 10,
+        hitCount: 3,
+        critChance: 0.1,
+      },
+      {
+        id: 'rapid_strike_3',
+        tier: 3,
+        name: '多重斬擊 III',
+        description: '隨機攻擊4次 有10%機率暴擊。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 16,
+        requiredLevel: 20,
+        hitCount: 4,
+        critChance: 0.1,
+      },
+      {
+        id: 'rapid_strike_4',
+        tier: 4,
+        name: '多重斬擊 IV',
+        description: '隨機攻擊5次 有10%機率暴擊。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 25,
+        requiredLevel: 30,
+        hitCount: 5,
+        critChance: 0.1,
+      },
+      {
+        id: 'rapid_strike_5',
+        tier: 5,
+        name: '多重斬擊 V',
+        description: '隨機攻擊6次 有10%機率暴擊。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 40,
+        requiredLevel: 40,
+        hitCount: 6,
+        critChance: 0.1 ,
+      },
+    ],
+  },
+  // 劍技 - 蓄力斬（3階段）：高傷害爆發技能
+  {
+    flow: 'sword',
+    id: 'sword_charge_strike',
+    aoe: false,
+    steps: [
+      {
+        id: 'charge_strike_1',
+        tier: 1,
+        name: '蓄力斬 I',
+        description: '消耗大量MP，造成攻擊力×150%的傷害。',
+        kind: 'attack',
+        power: 0, // 使用attackMultiplier
+        mpCost: 20,
+        requiredLevel: 15,
+        attackMultiplier: 1.5, // 攻擊力×150%
+        critChance: 0,
+      },
+      {
+        id: 'charge_strike_2',
+        tier: 2,
+        name: '蓄力斬 II',
+        description: '消耗大量MP，造成攻擊力×200%的傷害。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 30,
+        requiredLevel: 25,
+        attackMultiplier: 2.0, // 攻擊力×200%
+        critChance: 0,
+      },
+      {
+        id: 'charge_strike_3',
+        tier: 3,
+        name: '蓄力斬 III',
+        description: '消耗大量MP，造成攻擊力×250%的傷害。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 40,
+        requiredLevel: 35,
+        attackMultiplier: 2.5, // 攻擊力×250%
+        critChance: 0,
+      },
+    ],
+  },
+  // 劍技 - 劍意（3階段）：提升自身攻擊力和暴擊率
+  {
+    flow: 'sword',
+    id: 'sword_intent',
+    aoe: false,
+    steps: [
+      {
+        id: 'sword_intent_1',
+        tier: 1,
+        name: '劍意 I',
+        description: '提升自身攻擊力20%和暴擊率15%，持續3回合。',
+        kind: 'enhance',
+        mpCost: 10,
+        requiredLevel: 12,
+        duration: 3,
+        attackBoost: 0.20, // 攻擊力提升20%
+        critBoost: 15, // 暴擊率提升15%
+        selfBuff: true, // 標記為自身buff（非光環）
+      },
+      {
+        id: 'sword_intent_2',
+        tier: 2,
+        name: '劍意 II',
+        description: '提升自身攻擊力30%和暴擊率20%，持續4回合。',
+        kind: 'enhance',
+        mpCost: 20,
+        requiredLevel: 22,
+        duration: 4,
+        attackBoost: 0.30, // 攻擊力提升30%
+        critBoost: 20, // 暴擊率提升20%
+        selfBuff: true,
+      },
+      {
+        id: 'sword_intent_3',
+        tier: 3,
+        name: '劍意 III',
+        description: '提升自身攻擊力40%和暴擊率25%，持續5回合。',
+        kind: 'enhance',
+        mpCost: 30,
+        requiredLevel: 32,
+        duration: 5,
+        attackBoost: 0.40, // 攻擊力提升40%
+        critBoost: 25, // 暴擊率提升25%
+        selfBuff: true,
+      },
+    ],
+  },
+  // 敏捷技 - 攻擊加上敏捷修正（5階段）
+  {
+    flow: 'agility',
+    id: 'agility_boost',
+    aoe: false,
+    steps: [
+      {
+        id: 'agility_strike_1',
+        tier: 1,
+        name: '必殺斬 I',
+        description: '造成攻擊力×50% + 敏捷×50%的傷害，增加50%暴擊率。',
+        kind: 'attack',     
+        power: 5,
+        mpCost: 2,
+        requiredLevel: 0,
+        agilityBonus: 0.5, // 敏捷/2
+        critChance: 0.5,
+      },
+      {
+        id: 'agility_strike_2',
+        tier: 2,
+        name: '必殺斬 II',
+        description: '造成攻擊力×50% + 敏捷×55%的傷害，增加50%暴擊率。',
+        kind: 'attack',
+        power: 10,
+        mpCost: 4,
+        requiredLevel: 10,
+        agilityBonus: 0.55, // 敏捷/1.5   
+        critChance: 0.5,      
+      },
+      {
+        id: 'agility_strike_3',
+        tier: 3,
+        name: '必殺斬 III',
+        description: '造成攻擊力×50% + 敏捷×60%的傷害，增加50%暴擊率。',
+        kind: 'attack',
+        power: 20,
+        mpCost: 8,
+        requiredLevel: 20,
+        agilityBonus: 0.60, // 敏捷/1
+        critChance: 0.5,     
+      },
+      {
+        id: 'agility_strike_4',
+        tier: 4,
+        name: '必殺斬 IV',
+        description: '造成攻擊力×50% + 敏捷×65%的傷害，增加50%暴擊率。',
+        kind: 'attack',
+        power: 30,
+        mpCost: 15,
+        requiredLevel: 30,
+        agilityBonus: 0.65,
+        critChance: 0.5,     
+      },
+      {
+        id: 'agility_strike_5',
+        tier: 5,
+        name: '必殺斬 V',
+        description: '造成攻擊力×50% + 敏捷×70%的傷害，增加50%暴擊率。',
+        kind: 'attack',
+        power: 40,
+        mpCost: 20,
+        requiredLevel: 40,
+        agilityBonus: 0.70,
+        critChance: 0.5,     
+      },
+    ],
+  },
+  // 敏捷技 - 腎擊（5階段）：降低敵人攻擊力
+  {
+    flow: 'agility',
+    id: 'kidney_strike',
+    aoe: false,
+    steps: [
+      {
+        id: 'kidney_strike_1',
+        tier: 1,
+        name: '腎擊 I',
+        description: '造成攻擊力×50% + 敏捷×50%的傷害，降低敵人攻擊力1/4（持續2回合）。',
+        kind: 'attack',
+        power: 5,
+        mpCost: 2,
+        requiredLevel: 0,
+        agilityBonus: 0.5,
+        critChance: 0, // 沒有暴擊率
+        attackDownDuration: 2, // 持續2回合
+        attackDownRatio: 0.25, // 減少1/4攻擊力
+      },
+      {
+        id: 'kidney_strike_2',
+        tier: 2,
+        name: '腎擊 II',
+        description: '造成攻擊力×50% + 敏捷×55%的傷害，降低敵人攻擊力1/4（持續2回合）。',
+        kind: 'attack',
+        power: 10,
+        mpCost: 4,
+        requiredLevel: 10,
+        agilityBonus: 0.55,
+        critChance: 0,
+        attackDownDuration: 2,
+        attackDownRatio: 0.25,
+      },
+      {
+        id: 'kidney_strike_3',
+        tier: 3,
+        name: '腎擊 III',
+        description: '造成攻擊力×50% + 敏捷×60%的傷害，降低敵人攻擊力1/4（持續2回合）。',
+        kind: 'attack',
+        power: 20,
+        mpCost: 8,
+        requiredLevel: 20,
+        agilityBonus: 0.60,
+        critChance: 0,
+        attackDownDuration: 2,
+        attackDownRatio: 0.25,
+      },
+      {
+        id: 'kidney_strike_4',
+        tier: 4,
+        name: '腎擊 IV',
+        description: '造成攻擊力×50% + 敏捷×65%的傷害，降低敵人攻擊力1/4（持續3回合）。',
+        kind: 'attack',
+        power: 30,
+        mpCost: 15,
+        requiredLevel: 30,
+        agilityBonus: 0.65,
+        critChance: 0,
+        attackDownDuration: 3,
+        attackDownRatio: 0.25,
+      },
+      {
+        id: 'kidney_strike_5',
+        tier: 5,
+        name: '腎擊 V',
+        description: '造成攻擊力×50% + 敏捷×70%的傷害，降低敵人攻擊力1/4（持續3回合）。',
+        kind: 'attack',
+        power: 40,
+        mpCost: 20,
+        requiredLevel: 40,
+        agilityBonus: 0.70,
+        critChance: 0,
+        attackDownDuration: 3,
+        attackDownRatio: 0.25,
+      },
+    ],
+  },
+  // 敏捷技 - 連擊（5階段）：多段攻擊
+  {
+    flow: 'agility',
+    id: 'agility_combo',
+    aoe: false,
+    steps: [
+      {
+        id: 'combo_strike_1',
+        tier: 1,
+        name: '連擊 I',
+        description: '對單體進行2次攻擊，每次造成攻擊力×50% + 敏捷×30%的傷害。',
+        kind: 'attack',
+        power: 3,
+        mpCost: 3,
+        requiredLevel: 5,
+        hitCount: 2,
+        agilityBonus: 0.3,
+        critChance: 0,
+      },
+      {
+        id: 'combo_strike_2',
+        tier: 2,
+        name: '連擊 II',
+        description: '對單體進行2次攻擊，每次造成攻擊力×50% + 敏捷×40%的傷害。',
+        kind: 'attack',
+        power: 8,
+        mpCost: 6,
+        requiredLevel: 15,
+        hitCount: 2,
+        agilityBonus: 0.40,
+        critChance: 0,
+      },
+      {
+        id: 'combo_strike_3',
+        tier: 3,
+        name: '連擊 III',
+        description: '對單體進行2次攻擊，每次造成攻擊力×50% + 敏捷×50%的傷害。',
+        kind: 'attack',
+        power: 5,
+        mpCost: 10, 
+        requiredLevel: 25,
+        hitCount: 2,
+        agilityBonus: 0.5,
+        critChance: 0,
+      },
+      {
+        id: 'combo_strike_4',
+        tier: 4,
+        name: '連擊 IV',
+        description: '對單體進行3次攻擊，每次造成攻擊力×50%+敏捷×30%的傷害。',
+        kind: 'attack',
+        power: 5,
+        mpCost: 15,
+        requiredLevel: 35,
+        hitCount: 3,
+        agilityBonus: 0.30,
+        critChance: 0,
+      },
+      {
+        id: 'combo_strike_5',
+        tier: 5,
+        name: '連擊 V',
+        description: '對單體進行3次攻擊，每次造成攻擊力×50% + 敏捷×40%的傷害。',
+        kind: 'attack',
+        power: 5,
+        mpCost: 20,
+        requiredLevel: 45,
+        hitCount: 3,
+        agilityBonus: 0.4,
+        critChance: 0,
+      },
+    ],
+  },
+  // 敏捷技 - 偷襲（5階段）：高傷害單體攻擊，有機率偷取金幣
+  {
+    flow: 'agility',
+    id: 'agility_sneak_attack',
+    aoe: false,
+    steps: [
+      {
+        id: 'sneak_attack_1',
+        tier: 1,
+        name: '偷襲 I',
+        description: '對單體造成攻擊力+敏捷×60%的傷害，有30%機率偷取敵人金幣或道具。',
+        kind: 'attack',
+        power: 4,
+        mpCost: 2,
+        requiredLevel: 8,
+        agilityBonus: 0.6,
+        critChance: 0.3,
+        stealGold: true,
+        stealGoldPercent: 1.0,
+        stealGoldChance: 0.3,
+      },
+      {
+        id: 'sneak_attack_2',
+        tier: 2,
+        name: '偷襲 II',
+        description: '對單體造成攻擊力+敏捷×70%的傷害，有40%機率偷取敵人金幣或道具。',
+        kind: 'attack',
+        power: 10,
+        mpCost: 5,
+        requiredLevel: 18,
+        agilityBonus: 0.7,
+        critChance: 0.05,
+        stealGold: true,
+        stealGoldPercent: 1.0,
+        stealGoldChance: 0.4,
+      },
+      {
+        id: 'sneak_attack_3',
+        tier: 3,
+        name: '偷襲 III',
+        description: '對單體造成攻擊力+敏捷×80%的傷害，有50%機率偷取敵人20%金幣或道具。',
+        kind: 'attack',
+        power: 30,
+        mpCost: 10,
+        requiredLevel: 28,
+        agilityBonus: 0.8,
+        critChance: 0.4,
+        stealGold: true,
+        stealGoldPercent: 1.0,
+        stealGoldChance: 0.5,
+      },
+      {
+        id: 'sneak_attack_4',
+        tier: 4,
+        name: '偷襲 IV',
+        description: '對單體造成攻擊力+敏捷×90%的傷害，有60%機率偷取敵人25%金幣或道具。',
+        kind: 'attack',
+        power: 50,
+        mpCost: 18,
+        requiredLevel: 38,
+        agilityBonus: 0.9,
+        critChance: 0.45,
+        stealGold: true,
+        stealGoldPercent: 1.0,
+        stealGoldChance: 0.6,
+      },
+      {
+        id: 'sneak_attack_5',
+        tier: 5,
+        name: '偷襲 V',
+        description: '對單體造成攻擊力+敏捷×100%的傷害，有70%機率偷取敵人30%金幣或道具。',
+        kind: 'attack',
+        power: 80,
+        mpCost: 25,
+        requiredLevel: 48,
+        agilityBonus: 1.0,
+        critChance: 0.5,
+        stealGold: true,
+        stealGoldPercent: 1.0,
+        stealGoldChance: 0.7,
+      },
+    ],
+  },
+  // 敏捷技 - 下毒（單體）
+  {
+    flow: 'agility',
+    id: 'agility_poison',
+    aoe: false,
+    steps: [
+      {
+        id: 'poison_attack_1',
+        tier: 1,
+        name: '下毒 I',
+        description: '對敵人下毒，使其在接下來的3回合中，每回合受到施法者敏捷值30%的傷害（不受防守影響）。',
+        kind: 'debuff',
+        mpCost: 3,
+        requiredLevel: 4,
+        poisonDuration: 3, // 持續3回合
+        poisonRatio: 0.3, // 敏捷的1/3
+      },
+      {
+        id: 'poison_attack_2',
+        tier: 2,
+        name: '下毒 II',
+        description: '對敵人下毒，使其在接下來的3回合中，每回合受到施法者敏捷值40%的傷害（不受防守影響）。',
+        kind: 'debuff',
+        mpCost: 9,
+        requiredLevel: 18,
+        poisonDuration: 3, // 持續3回合
+        poisonRatio: 0.4, // 敏捷的1/3
+      },
+      {
+        id: 'poison_attack_3',
+        tier: 3,
+        name: '下毒 III',
+        description: '對敵人下毒，使其在接下來的3回合中，每回合受到施法者敏捷值50%的傷害（不受防守影響）。',
+        kind: 'debuff',
+        mpCost: 15,
+        requiredLevel: 30,
+        poisonDuration: 3, // 持續3回合
+        poisonRatio: 0.5, // 敏捷的1/3
+      },
+    ],
+  },
+  // 劍士型被動技能 - 額外提升攻擊力
+  {
+    flow: 'sword',
+    id: 'sword_passive_attack',
+    aoe: false,
+    steps: [
+      {
+        id: 'sword_attack_boost_1',
+        tier: 1,
+        name: '劍術專精 I',
+        description: '額外提升攻擊力 10%。',
+        kind: 'passive',
+        attackBoost: 0.10,
+        requiredLevel: 0,
+      },
+      {
+        id: 'sword_attack_boost_2',
+        tier: 2,
+        name: '劍術專精 II',
+        description: '額外提升攻擊力 20%。',
+        kind: 'passive',
+        attackBoost: 0.20,
+        requiredLevel: 10,
+      },
+      {
+        id: 'sword_attack_boost_3',
+        tier: 3,
+        name: '劍術專精 III',
+        description: '額外提升攻擊力 30%。',
+        kind: 'passive',
+        attackBoost: 0.30,
+        requiredLevel: 20,
+      },
+      {
+        id: 'sword_attack_boost_4',
+        tier: 4,
+        name: '劍術專精 IV',
+        description: '額外提升攻擊力 4 0%。',
+        kind: 'passive',
+        attackBoost: 0.40,
+        requiredLevel: 30,
+      },
+      {
+        id: 'sword_attack_boost_5',
+        tier: 5,
+        name: '劍術專精 V',
+        description: '額外提升攻擊力 50%。',
+        kind: 'passive',
+        attackBoost: 0.50,
+        requiredLevel: 40,
+      },
+    ],
+  },
+  // 劍士型被動技能 - 使用劍技後返回MP
+  {
+    flow: 'sword',
+    id: 'sword_passive_mp_return',
+    aoe: false,
+    steps: [
+      {
+        id: 'sword_mp_return_1',
+        tier: 1,
+        name: '劍氣回湧 I',
+        description: '使用劍技後返回消耗的MP 20%。',
+        kind: 'passive',
+        mpReturnRate: 0.20,
+        requiredLevel: 0,
+      },
+      {
+        id: 'sword_mp_return_2',
+        tier: 2,
+        name: '劍氣回湧 II',
+        description: '使用劍技後返回消耗的MP 30%。',
+        kind: 'passive',
+        mpReturnRate: 0.30,
+        requiredLevel: 10,
+      },
+      {
+        id: 'sword_mp_return_3',
+        tier: 3,
+        name: '劍氣回湧 III',
+        description: '使用劍技後返回消耗的MP 40%。',
+        kind: 'passive',
+        mpReturnRate: 0.40,
+        requiredLevel: 20,
+      },
+      {
+        id: 'sword_mp_return_4',
+        tier: 4,
+        name: '劍氣回湧 IV',
+        description: '使用劍技後返回消耗的MP 50%。',
+        kind: 'passive',
+        mpReturnRate: 0.50,
+        requiredLevel: 30,
+      },
+      {
+        id: 'sword_mp_return_5',
+        tier: 5,
+        name: '劍氣回湧 V',
+        description: '使用劍技後返回消耗的MP 60%。',
+        kind: 'passive',
+        mpReturnRate: 0.60,
+        requiredLevel: 40,
+      },
+    ],
+  },
+  // 劍士型被動技能 - 有機率多攻擊1次
+  {
+    flow: 'sword',
+    id: 'sword_passive_double_attack',
+    aoe: false,
+    steps: [
+      {
+        id: 'sword_double_attack_1',
+        tier: 1,
+        name: '連擊技巧 I',
+        description: '有 20% 機率在攻擊或劍技後多攻擊1次。',
+        kind: 'passive',
+        doubleAttackChance: 0.20,
+        requiredLevel: 0,
+      },
+      {
+        id: 'sword_double_attack_2',
+        tier: 2,
+        name: '連擊技巧 II',
+        description: '有 30% 機率在攻擊或劍技後多攻擊1次。',
+        kind: 'passive',
+        doubleAttackChance: 0.30,
+        requiredLevel: 10,
+      },
+      {
+        id: 'sword_double_attack_3',
+        tier: 3,
+        name: '連擊技巧 III',
+        description: '有 40% 機率在攻擊或劍技後多攻擊1次。',
+        kind: 'passive',
+        doubleAttackChance: 0.40,
+        requiredLevel: 20,
+      },
+      {
+        id: 'sword_double_attack_4',
+        tier: 4,
+        name: '連擊技巧 IV',
+        description: '有 50% 機率在攻擊或劍技後多攻擊1次。',
+        kind: 'passive',
+        doubleAttackChance: 0.50,
+        requiredLevel: 30,
+      },
+      {
+        id: 'sword_double_attack_5',
+        tier: 5,
+        name: '連擊技巧 V',
+        description: '有 60% 機率在攻擊或劍技後多攻擊1次。',
+        kind: 'passive',
+        doubleAttackChance: 0.60,
+        requiredLevel: 40,
+      },
+    ],
+  },
+  // 劍士型被動技能 - 攻擊後回復HP
+  {
+    flow: 'sword',
+    id: 'sword_passive_lifesteal',
+    aoe: false,
+    steps: [
+      {
+        id: 'sword_lifesteal_1',
+        tier: 1,
+        name: '嗜血劍術 I',
+        description: '攻擊後回復HP，是造成傷害的 10%。',
+        kind: 'passive',
+        lifestealRate: 0.1,
+        requiredLevel: 0,
+      },
+      {
+        id: 'sword_lifesteal_2',
+        tier: 2,
+        name: '嗜血劍術 II',
+        description: '攻擊後回復HP，是造成傷害的 15%。',
+        kind: 'passive',
+        lifestealRate: 0.15,
+        requiredLevel: 10,
+      },
+      {
+        id: 'sword_lifesteal_3',
+        tier: 3,
+        name: '嗜血劍術 III',
+        description: '攻擊後回復HP，是造成傷害的 20%。',
+        kind: 'passive',
+        lifestealRate: 0.20,
+        requiredLevel: 20,
+      },
+      {
+        id: 'sword_lifesteal_4',
+        tier: 4,
+        name: '嗜血劍術 IV',
+        description: '攻擊後回復HP，是造成傷害的 20%。',
+        kind: 'passive',
+        lifestealRate: 0.20,
+        requiredLevel: 30,
+      },
+      {
+        id: 'sword_lifesteal_5',
+        tier: 5,
+        name: '嗜血劍術 V',
+        description: '攻擊後回復HP，是造成傷害的 25%。',
+        kind: 'passive',
+        lifestealRate: 0.25,
+        requiredLevel: 40,
+      },
+    ],
+  },
+  // 防守系單體技能 - 捨身斬（扣HP造成傷害）
+  {
+    flow: 'defender',
+    id: 'defense_sacrifice_attack',
+    aoe: false,
+    steps: [
+      {
+        id: 'sacrifice_slash_1',
+        tier: 1,
+        name: '捨身斬 I',
+        description: '攻擊力×50% + 消耗HP的10%，造成消耗HP的5倍傷害。不消耗MP。',
+        kind: 'attack',
+        power: 5,
+        mpCost: 0,
+        requiredLevel: 0,
+        critChance: 0,    
+        hpCostPercent: 0.10,
+        attackBoostMultiplier: 5,
+      },
+      {
+        id: 'sacrifice_slash_2',  
+        tier: 2,
+        name: '捨身斬 II',
+        description: '攻擊力×50% + 消耗HP的10%，造成消耗HP的5.5倍傷害。不消耗MP。',
+        kind: 'attack',
+        power: 5,
+        mpCost: 0,
+        requiredLevel: 10,
+        critChance: 0,
+        hpCostPercent: 0.10,
+        attackBoostMultiplier: 5.5,
+      },
+      {
+        id: 'sacrifice_slash_3',
+        tier: 3,
+        name: '捨身斬 III',
+        description: '攻擊力×50% + 消耗HP的10%，造成消耗HP的6.0倍傷害。不消耗MP。',
+        kind: 'attack',
+        power: 6,
+        mpCost: 0,
+        requiredLevel: 20,
+        critChance: 0,
+        hpCostPercent: 0.10,
+        attackBoostMultiplier: 6.0  ,
+      },
+      {
+        id: 'sacrifice_slash_4',
+        tier: 4,
+        name: '捨身斬 IV',
+        description: '攻擊力×50% + 消耗HP的10%，造成消耗HP的7倍傷害。不消耗MP。',
+        kind: 'attack',
+        power: 7,
+        mpCost: 0,
+        requiredLevel: 30,
+        critChance: 0,
+        hpCostPercent: 0.10,
+        attackBoostMultiplier: 7,
+      },
+      {
+        id: 'sacrifice_slash_5',
+        tier: 5,
+        name: '捨身斬 V',
+        description: '攻擊力×50% + 消耗HP的10%，造成消耗HP的8倍傷害。不消耗MP。',
+        kind: 'attack',
+        power: 8,
+        mpCost: 0,
+        requiredLevel: 40,
+        critChance: 0,
+        hpCostPercent: 0.10,
+        attackBoostMultiplier: 8,
+      },
+      {
+        id: 'sacrifice_slash_6',
+        tier: 6,
+        name: '捨身斬 VI',
+        description: '攻擊力×50% + 消耗HP的10%，造成消耗HP的9倍傷害。不消耗MP。',
+        kind: 'attack',
+        power: 9,
+        mpCost: 0,
+        requiredLevel: 50,
+        critChance: 0,
+        hpCostPercent: 0.10,
+        attackBoostMultiplier: 9,
+      },
+    ],
+  },
+  // 防守系全體攻擊技能 - 防守衝擊
+  {
+    flow: 'defender',
+    id: 'defense_aoe_attack',
+    aoe: true,
+    steps: [
+      {
+        id: 'defense_wave_1',
+        tier: 1,
+        name: '防守衝擊 I',
+        description: '攻擊所有敵人，攻擊力 = 攻擊的50% + 防守力的80%。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 8,
+        requiredLevel: 10,
+        critChance: 0,
+        defenseBoostPercent: 0.8,
+      },
+      {
+        id: 'defense_wave_2',
+        tier: 2,
+        name: '防守衝擊 II',
+        description: '攻擊所有敵人，攻擊力 = 攻擊的50% + 防守力的90%。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 14,
+        requiredLevel: 20,
+        critChance: 0,
+        defenseBoostPercent: 0.9,
+      },
+      {
+        id: 'defense_wave_3',
+        tier: 3,
+        name: '防守衝擊 III',
+        description: '攻擊所有敵人，攻擊力 = 攻擊的50% + 防守力的100%。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 20,
+        requiredLevel: 30,
+        critChance: 0,
+        defenseBoostPercent: 1.0,
+      },
+      {
+        id: 'defense_wave_4',
+        tier: 4,
+        name: '防守衝擊 IV',
+        description: '攻擊所有敵人，攻擊力 = 攻擊的50% + 防守力的110%。',
+        kind: 'attack',
+        power: 0,
+        mpCost: 26,
+        requiredLevel: 40,
+        critChance: 0,
+        defenseBoostPercent: 1.1, 
+      },
+    ],
+  },
+  // 防守系被動技能 - 增加被攻擊機率
+  {
+    flow: 'defender',
+    id: 'defender_passive_aggro',
+    aoe: false,
+    steps: [
+      {
+        id: 'defender_aggro_1',
+        tier: 1,
+        name: '挑釁 I',
+        description: '增加被攻擊機率 10%。',
+        kind: 'passive',
+        aggroBoost: 0.10,
+        requiredLevel: 0,
+      },
+      {
+        id: 'defender_aggro_2',
+        tier: 2,
+        name: '挑釁 II',
+        description: '增加被攻擊機率 20%。',
+        kind: 'passive',
+        aggroBoost: 0.20,
+        requiredLevel: 10,
+      },
+      {
+        id: 'defender_aggro_3',
+        tier: 3,
+        name: '挑釁 III',
+        description: '增加被攻擊機率 30%。',
+        kind: 'passive',
+        aggroBoost: 0.30,
+        requiredLevel: 20,
+      },
+      {
+        id: 'defender_aggro_4',
+        tier: 4,
+        name: '挑釁 IV',
+        description: '增加被攻擊機率 40%。',
+        kind: 'passive',
+        aggroBoost: 0.40,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 防守系被動技能 - 增加固定值的HP
+  {
+    flow: 'defender',
+    id: 'defender_passive_hp',
+    aoe: false,
+    steps: [
+      {
+        id: 'defender_hp_1',
+        tier: 1,
+        name: '堅韌體魄 I',
+        description: '增加最大HP 10點。',
+        kind: 'passive',
+        hpBonus: 10,
+        requiredLevel: 0,
+      },
+      {
+        id: 'defender_hp_2',
+        tier: 2,
+        name: '堅韌體魄 II',
+        description: '增加最大HP 20點。',
+        kind: 'passive',
+        hpBonus: 20,
+        requiredLevel: 10,
+      },
+      {
+        id: 'defender_hp_3',
+        tier: 3,
+        name: '堅韌體魄 III',
+        description: '增加最大HP 40點。',
+        kind: 'passive',
+        hpBonus: 40,
+        requiredLevel: 20,
+      },
+      {
+        id: 'defender_hp_4',
+        tier: 4,
+        name: '堅韌體魄 IV',
+        description: '增加最大HP 80點。',
+        kind: 'passive',
+        hpBonus: 80,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 防守系被動技能 - 增加固定值的防守值
+  {
+    flow: 'defender',
+    id: 'defender_passive_defense',
+    aoe: false,
+    steps: [
+      {
+        id: 'defender_defense_1',
+        tier: 1,
+        name: '鋼鐵護甲 I',
+        description: '增加防守力 5點。',
+        kind: 'passive',
+        defenseBonus: 5,
+        requiredLevel: 0,
+      },
+      {
+        id: 'defender_defense_2',
+        tier: 2,
+        name: '鋼鐵護甲 II',
+        description: '增加防守力 10點。',
+        kind: 'passive',
+        defenseBonus: 10,
+        requiredLevel: 10,
+      },
+      {
+        id: 'defender_defense_3',
+        tier: 3,
+        name: '鋼鐵護甲 III',
+        description: '增加防守力 20點。',
+        kind: 'passive',
+        defenseBonus: 20,
+        requiredLevel: 20,
+      },
+      {
+        id: 'defender_defense_4',
+        tier: 4,
+        name: '鋼鐵護甲 IV',
+        description: '增加防守力 40點。',
+        kind: 'passive',
+        defenseBonus: 40,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 防守系主動技能 - 傷害減免
+  {
+    flow: 'defender',
+    id: 'defender_damage_reduction',
+    aoe: false,
+    steps: [
+      {
+        id: 'damage_reduction_1',
+        tier: 1,
+        name: '傷害減免 I',
+        description: '這回合被所有人攻擊，受到傷害減少 40%。',
+        kind: 'buff',
+        damageReduction: 0.4, // 減少40%傷害
+        mpCost: 10,
+        requiredLevel: 10,
+      },
+      {
+        id: 'damage_reduction_2',
+        tier: 2,
+        name: '傷害減免 II',
+        description: '這回合被所有人攻擊，受到傷害減少 50%。',
+        kind: 'buff',
+        damageReduction: 0.5, // 減少50%傷害
+        mpCost: 20,
+        requiredLevel: 20,
+      },
+      {
+        id: 'damage_reduction_3',
+        tier: 3,
+        name: '傷害減免 III',
+        description: '這回合被所有人攻擊，受到傷害減少 60%。',
+        kind: 'buff',
+        damageReduction: 0.6, // 減少60%傷害
+        mpCost: 30,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 聖騎士光環技能 - 全體增益（4種，12級可學）
+  {
+    flow: 'defender',
+    id: 'aura_attack_boost',
+    aoe: true,
+    steps: [
+      {
+        id: 'aura_attack_boost_1',
+        tier: 1,
+        name: '攻擊光環',
+        description: '全體攻擊力 + 體力/10，持續3回合。',
+        kind: 'enhance',
+        auraType: 'attack',
+        mpCost: 0, // 不耗MP
+        requiredLevel: 12,
+        duration: 3,
+      },
+    ],
+  },
+  {
+    flow: 'defender',
+    id: 'aura_defense_boost',
+    aoe: true,
+    steps: [
+      {
+        id: 'aura_defense_boost_1',
+        tier: 1,
+        name: '防禦光環',
+        description: '全體防禦力 + 體力/10，持續3回合。',
+        kind: 'enhance',
+        auraType: 'defense',
+        mpCost: 0, // 不耗MP
+        requiredLevel: 12,
+        duration: 3,
+      },
+    ],
+  },
+  {
+    flow: 'defender',
+    id: 'aura_hp_regen',
+    aoe: true,
+    steps: [
+      {
+        id: 'aura_hp_regen_1',
+        tier: 1,
+        name: '生命光環',
+        description: '全體每回合恢復HP = 體力/10，持續3回合。',
+        kind: 'enhance',
+        auraType: 'hpRegen',
+        mpCost: 0, // 不耗MP
+        requiredLevel: 12,
+        duration: 3,
+      },
+    ],
+  },
+  {
+    flow: 'defender',
+    id: 'aura_mp_regen',
+    aoe: true,
+    steps: [
+      {
+        id: 'aura_mp_regen_1',
+        tier: 1,
+        name: '魔力光環',
+        description: '全體每回合恢復MP = 體力/20，持續3回合。',
+        kind: 'enhance',
+        auraType: 'mpRegen',
+        mpCost: 0, // 不耗MP
+        requiredLevel: 12,
+        duration: 3,
+      },
+    ],
+  },
+  // 防守系被動技能 - 戰鬥後恢復固定比率的HP值
+  {
+    flow: 'defender',
+    id: 'defender_passive_regen',
+    aoe: false,
+    steps: [
+      {
+        id: 'defender_regen_1',
+        tier: 1,
+        name: '戰後恢復 I',
+        description: '戰鬥後恢復最大HP的 4%。',
+        kind: 'passive',
+        postBattleHpRegen: 0.04,
+        requiredLevel: 0,
+      },
+      {
+        id: 'defender_regen_2',
+        tier: 2,
+        name: '戰後恢復 II',
+        description: '戰鬥後恢復最大HP的 6%。',
+        kind: 'passive',
+        postBattleHpRegen: 0.06,
+        requiredLevel: 10,
+      },
+      {
+        id: 'defender_regen_3',
+        tier: 3,
+        name: '戰後恢復 III',
+        description: '戰鬥後恢復最大HP的 8%。',
+        kind: 'passive',
+        postBattleHpRegen: 0.08,
+        requiredLevel: 20,
+      },
+      {
+        id: 'defender_regen_4',
+        tier: 4,
+        name: '戰後恢復 IV',
+        description: '戰鬥後恢復最大HP的 10%。',
+        kind: 'passive',
+        postBattleHpRegen: 0.10,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 恢復系被動技能 - 增加恢復的能力（按比例）
+  {
+    flow: 'recovery',
+    id: 'recovery_passive_heal_boost',
+    aoe: false,
+    steps: [
+      {
+        id: 'recovery_heal_boost_1',
+        tier: 1,
+        name: '治療專精 I',
+        description: '增加治療效果 10%。',
+        kind: 'passive',
+        recoveryBoost: 0.10,
+        requiredLevel: 0,
+      },
+      {
+        id: 'recovery_heal_boost_2',
+        tier: 2,
+        name: '治療專精 II',
+        description: '增加治療效果 20%。',
+        kind: 'passive',
+        recoveryBoost: 0.20,
+        requiredLevel: 10,
+      },
+      {
+        id: 'recovery_heal_boost_3',
+        tier: 3,
+        name: '治療專精 III',
+        description: '增加治療效果 30%。',
+        kind: 'passive',
+        recoveryBoost: 0.30,
+        requiredLevel: 20,
+      },
+      {
+        id: 'recovery_heal_boost_4',
+        tier: 4,
+        name: '治療專精 IV',
+        description: '增加治療效果 40%。',
+        kind: 'passive',
+        recoveryBoost: 0.40,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 恢復系被動技能 - 戰鬥中每回合固定回復一定值的MP
+  {
+    flow: 'recovery',
+    id: 'recovery_passive_mp_regen',
+    aoe: false,
+    steps: [
+      {
+        id: 'recovery_mp_regen_1',
+        tier: 1,
+        name: '魔力回復 I',
+        description: '每回合回復 1 MP。',
+        kind: 'passive',
+        perTurnMpRegen: 1,
+        requiredLevel: 0,
+      },
+      {
+        id: 'recovery_mp_regen_2',
+        tier: 2,
+        name: '魔力回復 II',
+        description: '每回合回復 2 MP。',
+        kind: 'passive',
+        perTurnMpRegen: 2,
+        requiredLevel: 10,
+      },
+      {
+        id: 'recovery_mp_regen_3',
+        tier: 3,
+        name: '魔力回復 III',
+        description: '每回合回復 4 MP。',
+        kind: 'passive',
+        perTurnMpRegen: 4,
+        requiredLevel: 20,
+      },
+      {
+        id: 'recovery_mp_regen_4',
+        tier: 4,
+        name: '魔力回復 IV',
+        description: '每回合回復 8 MP。',
+        kind: 'passive',
+        perTurnMpRegen: 8,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 恢復系被動技能 - 戰鬥中每回合回復固定的HP值
+  {
+    flow: 'recovery',
+    id: 'recovery_passive_hp_regen',
+    aoe: false,
+    steps: [
+      {
+        id: 'recovery_hp_regen_1',
+        tier: 1,
+        name: '生命回復 I',
+        description: '每回合回復 3 HP。',
+        kind: 'passive',
+        perTurnHpRegen: 3,
+        requiredLevel: 0,
+      },
+      {
+        id: 'recovery_hp_regen_2',
+        tier: 2,
+        name: '生命回復 II',
+        description: '每回合回復 7 HP。',
+        kind: 'passive',
+        perTurnHpRegen: 7,
+        requiredLevel: 10,
+      },
+      {
+        id: 'recovery_hp_regen_3',
+        tier: 3,
+        name: '生命回復 III',
+        description: '每回合回復 14 HP。',
+        kind: 'passive',
+        perTurnHpRegen: 14,
+        requiredLevel: 20,
+      },
+      {
+        id: 'recovery_hp_regen_4',
+        tier: 4,
+        name: '生命回復 IV',
+        description: '每回合回復 28 HP。',
+        kind: 'passive',
+        perTurnHpRegen: 28,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 恢復系被動技能 - 攻擊敵人可以回復一定值的MP
+  {
+    flow: 'recovery',
+    id: 'recovery_passive_attack_mp',
+    aoe: false,
+    steps: [
+      {
+        id: 'recovery_attack_mp_1',
+        tier: 1,
+        name: '魔力吸收 I',
+        description: '攻擊敵人時回復 1 MP。',
+        kind: 'passive',
+        attackMpReturn: 1,
+        requiredLevel: 0,
+      },
+      {
+        id: 'recovery_attack_mp_2',
+        tier: 2,
+        name: '魔力吸收 II',
+        description: '攻擊敵人時回復 2 MP。',
+        kind: 'passive',
+        attackMpReturn: 2,
+        requiredLevel: 10,
+      },
+      {
+        id: 'recovery_attack_mp_3',
+        tier: 3,
+        name: '魔力吸收 III',
+        description: '攻擊敵人時回復 4 MP。',
+        kind: 'passive',
+        attackMpReturn: 4,
+        requiredLevel: 20,
+      },
+      {
+        id: 'recovery_attack_mp_4',
+        tier: 4,
+        name: '魔力吸收 IV',
+        description: '攻擊敵人時回復 6 MP。',
+        kind: 'passive',
+        attackMpReturn: 6,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 魔法系被動技能 - 增加魔法傷害的威力（按比例）
+  {
+    flow: 'magic',
+    id: 'magic_passive_damage_boost',
+    aoe: false,
+    steps: [
+      {
+        id: 'magic_damage_boost_1',
+        tier: 1,
+        name: '魔法專精 I',
+        description: '增加魔法傷害 10%。',
+        kind: 'passive',
+        magicDamageBoost: 0.10,
+        requiredLevel: 0,
+      },
+      {
+        id: 'magic_damage_boost_2',
+        tier: 2,
+        name: '魔法專精 II',
+        description: '增加魔法傷害 20%。',
+        kind: 'passive',
+        magicDamageBoost: 0.20,
+        requiredLevel: 10,
+      },
+      {
+        id: 'magic_damage_boost_3',
+        tier: 3,
+        name: '魔法專精 III',
+        description: '增加魔法傷害 30%。',
+        kind: 'passive',
+        magicDamageBoost: 0.30,
+        requiredLevel: 20,
+      },
+      {
+        id: 'magic_damage_boost_4',
+        tier: 4,
+        name: '魔法專精 IV',
+        description: '增加魔法傷害 40%。',
+        kind: 'passive',
+        magicDamageBoost: 0.40,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 魔法系被動技能 - 法術攻擊可以恢復固定的MP值
+  {
+    flow: 'magic',
+    id: 'magic_passive_spell_mp',
+    aoe: false,
+    steps: [
+      {
+        id: 'magic_spell_mp_1',
+        tier: 1,
+        name: '魔力回流 I',
+        description: '使用法術攻擊時回復 1 MP。',
+        kind: 'passive',
+        spellMpReturn: 1,
+        requiredLevel: 0,
+      },
+      {
+        id: 'magic_spell_mp_2',
+        tier: 2,
+        name: '魔力回流 II',
+        description: '使用法術攻擊時回復 2 MP。',
+        kind: 'passive',
+        spellMpReturn: 2,
+        requiredLevel: 10,
+      },
+      {
+        id: 'magic_spell_mp_3',
+        tier: 3,
+        name: '魔力回流 III',
+        description: '使用法術攻擊時回復 4 MP。',
+        kind: 'passive',
+        spellMpReturn: 4,
+        requiredLevel: 20,
+      },
+      {
+        id: 'magic_spell_mp_4',
+        tier: 4,
+        name: '魔力回流 IV',
+        description: '使用法術攻擊時回復 6 MP。',
+        kind: 'passive',
+        spellMpReturn: 6,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 魔法系被動技能 - 戰鬥後可以回復一定比例的MP值
+  {
+    flow: 'magic',
+    id: 'magic_passive_post_mp',
+    aoe: false,
+    steps: [
+      {
+        id: 'magic_post_mp_1',
+        tier: 1,
+        name: '戰後回魔 I',
+        description: '戰鬥後恢復最大MP的2%。',
+        kind: 'passive',
+        postBattleMpRegen: 0.02,
+        requiredLevel: 0,
+      },
+      {
+        id: 'magic_post_mp_2',
+        tier: 2,
+        name: '戰後回魔 II',
+        description: '戰鬥後恢復最大MP的3%。',
+        kind: 'passive',
+        postBattleMpRegen: 0.03,
+        requiredLevel: 10,
+      },
+      {
+        id: 'magic_post_mp_3',
+        tier: 3,
+        name: '戰後回魔 III',
+        description: '戰鬥後恢復最大MP的4%。',
+        kind: 'passive',
+        postBattleMpRegen: 0.04,
+        requiredLevel: 20,
+      },
+      {
+        id: 'magic_post_mp_4',
+        tier: 4,
+        name: '戰後回魔 IV',
+        description: '戰鬥後恢復最大MP的5%。',
+        kind: 'passive',
+        postBattleMpRegen: 0.05,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 魔法系被動技能 - 有機率造成魔法暴擊（1.5倍）的威力
+  {
+    flow: 'magic',
+    id: 'magic_passive_crit',
+    aoe: false,
+    steps: [
+      {
+        id: 'magic_crit_1',
+        tier: 1,
+        name: '魔法暴擊 I',
+        description: '魔法攻擊有 10% 機率造成 1.5 倍傷害。',
+        kind: 'passive',
+        magicCritChance: 10,
+        magicCritMultiplier: 1.5,
+        requiredLevel: 0,
+      },
+      {
+        id: 'magic_crit_2',
+        tier: 2,
+        name: '魔法暴擊 II',
+        description: '魔法攻擊有 20% 機率造成 1.5 倍傷害。',
+        kind: 'passive',
+        magicCritChance: 20,
+        magicCritMultiplier: 1.5,
+        requiredLevel: 10,
+      },
+      {
+        id: 'magic_crit_3',
+        tier: 3,
+        name: '魔法暴擊 III',
+        description: '魔法攻擊有 30% 機率造成 1.5 倍傷害。',
+        kind: 'passive',
+        magicCritChance: 30,
+        magicCritMultiplier: 1.5,
+        requiredLevel: 20,
+      },
+      {
+        id: 'magic_crit_4',
+        tier: 4,
+        name: '魔法暴擊 IV',
+        description: '魔法攻擊有 40% 機率造成 1.5 倍傷害。',
+        kind: 'passive',
+        magicCritChance: 40,
+        magicCritMultiplier: 1.5,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 敏捷系被動技能 - 增加固定值的命中率
+  {
+    flow: 'agility',
+    id: 'agility_passive_hit_rate',
+    aoe: false,
+    steps: [
+      {
+        id: 'agility_hit_rate_1',
+        tier: 1,
+        name: '精準打擊 I',
+        description: '增加命中率 5%。',
+        kind: 'passive',
+        hitRateBonus: 5,
+        requiredLevel: 0,
+      },
+      {
+        id: 'agility_hit_rate_2',
+        tier: 2,
+        name: '精準打擊 II',
+        description: '增加命中率 10%。',
+        kind: 'passive',
+        hitRateBonus: 10,
+        requiredLevel: 10,
+      },
+      {
+        id: 'agility_hit_rate_3',
+        tier: 3,
+        name: '精準打擊 III',
+        description: '增加命中率 15%。',
+        kind: 'passive',
+        hitRateBonus: 15,
+        requiredLevel: 20,
+      },
+      {
+        id: 'agility_hit_rate_4',
+        tier: 4,
+        name: '精準打擊 IV',
+        description: '增加命中率 20%。',
+        kind: 'passive',
+        hitRateBonus: 20,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 敏捷系被動技能 - 增加固定值的暴擊率
+  {
+    flow: 'agility',
+    id: 'agility_passive_crit_rate',
+    aoe: false,
+    steps: [
+      {
+        id: 'agility_crit_rate_1',
+        tier: 1,
+        name: '致命一擊 I',
+        description: '增加暴擊率 5%。',
+        kind: 'passive',
+        critRateBonus: 5,
+        requiredLevel: 0,
+      },
+      {
+        id: 'agility_crit_rate_2',
+        tier: 2,
+        name: '致命一擊 II',
+        description: '增加暴擊率 10%。',
+        kind: 'passive',
+        critRateBonus: 10,
+        requiredLevel: 10,
+      },
+      {
+        id: 'agility_crit_rate_3',
+        tier: 3,
+        name: '致命一擊 III',
+        description: '增加暴擊率 15%。',
+        kind: 'passive',
+        critRateBonus: 15,
+        requiredLevel: 20,
+      },
+      {
+        id: 'agility_crit_rate_4',
+        tier: 4,
+        name: '致命一擊 IV',
+        description: '增加暴擊率 20%。',
+        kind: 'passive',
+        critRateBonus: 20,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 敏捷系被動技能 - 可以得到更多錢（比例）
+  {
+    flow: 'agility',
+    id: 'agility_passive_gold_boost',
+    aoe: false,
+    steps: [
+      {
+        id: 'agility_gold_boost_1',
+        tier: 1,
+        name: '財運亨通 I',
+        description: '戰鬥後獲得金幣增加 10%。',
+        kind: 'passive',
+        goldBoost: 0.10,
+        requiredLevel: 0,
+      },
+      {
+        id: 'agility_gold_boost_2',
+        tier: 2,
+        name: '財運亨通 II',
+        description: '戰鬥後獲得金幣增加 20%。',
+        kind: 'passive',
+        goldBoost: 0.20,
+        requiredLevel: 10,
+      },
+      {
+        id: 'agility_gold_boost_3',
+        tier: 3,
+        name: '財運亨通 III',
+        description: '戰鬥後獲得金幣增加 30%。',
+        kind: 'passive',
+        goldBoost: 0.30,
+        requiredLevel: 20,
+      },
+      {
+        id: 'agility_gold_boost_4',
+        tier: 4,
+        name: '財運亨通 IV',
+        description: '戰鬥後獲得金幣增加 40%。',
+        kind: 'passive',
+        goldBoost: 0.40,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 敏捷系被動技能 - 可以有更高的比例掉落物品
+  {
+    flow: 'agility',
+    id: 'agility_passive_drop_rate',
+    aoe: false,
+    steps: [
+      {
+        id: 'agility_drop_rate_1',
+        tier: 1,
+        name: '幸運拾取 I',
+        description: '物品掉落率增加 10%。',
+        kind: 'passive',
+        dropRateBoost: 0.10,
+        requiredLevel: 0,
+      },
+      {
+        id: 'agility_drop_rate_2',
+        tier: 2,
+        name: '幸運拾取 II',
+        description: '物品掉落率增加 20%。',
+        kind: 'passive',
+        dropRateBoost: 0.20,
+        requiredLevel: 10,
+      },
+      {
+        id: 'agility_drop_rate_3',
+        tier: 3,
+        name: '幸運拾取 III',
+        description: '物品掉落率增加 30%。',
+        kind: 'passive',
+        dropRateBoost: 0.30,
+        requiredLevel: 20,
+      },
+      {
+        id: 'agility_drop_rate_4',
+        tier: 4,
+        name: '幸運拾取 IV',
+        description: '物品掉落率增加 40%。',
+        kind: 'passive',
+        dropRateBoost: 0.40,
+        requiredLevel: 30,
+      },
+    ],
+  },
+  // 勇者之血 - 戰士之血：全體閃電斬
+  {
+    flow: 'hero',
+    id: 'hero_blood_warrior',
+    aoe: true,
+    steps: [
+      {
+        id: 'hero_blood_warrior_skill', 
+        tier: 5,
+        name: '全體閃電斬',
+        description: '全體攻擊：全能力之和x30%',
+        kind: 'attack',
+        power: 0,
+        mpCost: 30,
+        requiredLevel: 9999,
+        critChance: 0,
+        allAttributesRatio: 0.30,
+        isUnique: true, // 標記為獨有技能
+      },
+    ],
+  },
+  // 勇者之血 - 戰士之血：全能力+20被動
+  {
+    flow: 'hero',
+    id: 'hero_blood_warrior_passive',
+    aoe: false,
+    steps: [
+      {
+        id: 'hero_blood_warrior_passive_skill',
+        tier: 5,
+        name: '戰士之血',
+        description: '全能力 +20。',
+        kind: 'passive',
+        allAttributesBonus: 20, // 全能力+20
+        requiredLevel: 9999,
+        isUnique: true, // 標記為獨有技能
+      },
+    ],
+  },
+  // 勇者之血 - 回復之血：全體補血
+  {
+    flow: 'hero',
+    id: 'hero_blood_recovery',
+    aoe: true,
+    steps: [
+      {
+        id: 'hero_blood_recovery_skill',
+        tier: 5,
+        name: '極致治療',
+        description: '全體回復：200 + 回復力 × 100%。',
+        kind: 'heal',
+        power: 200, // 固定值200
+        mpCost: 60,
+        requiredLevel: 9999,
+        recoveryRatio: 1, // 回復力比例（1/2）
+        isUnique: true, // 標記為獨有技能
+      },
+    ],
+  },
+  // 勇者之血 - 回復之血：回復力+60 MP+50被動
+  {
+    flow: 'hero',
+    id: 'hero_blood_recovery_passive',
+    aoe: false,
+    steps: [
+      {
+        id: 'hero_blood_recovery_passive_skill',
+        tier: 5,
+        name: '回復之血',
+        description: '回復力 +100，MP +100。',
+        kind: 'passive',
+        recoveryBonus: 100, // 回復力+60
+        mpBonus: 100, // MP+50
+        requiredLevel: 9999,
+        isUnique: true, // 標記為獨有技能
+      },
+    ],
+  },
+  // 勇者之血 - 法師之血：單體魔法攻擊
+  {
+    flow: 'hero',
+    id: 'hero_blood_mage',
+    aoe: false,
+    steps: [
+      {
+        id: 'hero_blood_mage_skill',
+        tier: 5,
+        name: '終極毀滅咒文',
+        description: '單體魔法攻擊：威力 400 + 魔力 × 100%。',
+        kind: 'attack',
+        power: 400, // 固定值400
+        mpCost: 60,
+        requiredLevel: 9999,
+        critChance: 0,
+        magicRatio: 1, // 魔力比例（1/2）
+        isUnique: true, // 標記為獨有技能
+      },
+    ],
+  },
+  // 勇者之血 - 法師之血：MP+50 魔力+60被動
+  {
+    flow: 'hero',
+    id: 'hero_blood_mage_passive',
+    aoe: false,
+    steps: [
+      {
+        id: 'hero_blood_mage_passive_skill',
+        tier: 5,
+        name: '法師之血',
+        description: 'MP +100，魔力 +100。',
+        kind: 'passive',
+        mpBonus: 100, // MP+50
+        magicBonus: 100, // 魔力+60
+        requiredLevel:9999,
+        isUnique: true, // 標記為獨有技能
+      },
+    ],
+  },
+  // 勇者專屬 - 全能力提升（6階段）：每階段全能力+階段數
+  {
+    flow: 'hero',
+    id: 'hero_all_attributes_boost',
+    aoe: false,
+    steps: [
+      {
+        id: 'hero_all_attributes_boost_1',
+        tier: 1,
+        name: '全能力提升 I',
+        description: '全能力 +1。',
+        kind: 'passive',
+        allAttributesBonus: 1, // 全能力+1
+        requiredLevel: 0,
+      },
+      {
+        id: 'hero_all_attributes_boost_2',
+        tier: 2,
+        name: '全能力提升 II',
+        description: '全能力 +2。',
+        kind: 'passive',
+        allAttributesBonus: 2, // 全能力+2
+        requiredLevel: 5,
+      },
+      {
+        id: 'hero_all_attributes_boost_3',
+        tier: 3,
+        name: '全能力提升 III',
+        description: '全能力 +3。',
+        kind: 'passive',
+        allAttributesBonus: 3, // 全能力+3
+        requiredLevel: 15,
+      },
+      {
+        id: 'hero_all_attributes_boost_4',
+        tier: 4,
+        name: '全能力提升 IV',
+        description: '全能力 +4。',
+        kind: 'passive',
+        allAttributesBonus: 4, // 全能力+4
+        requiredLevel: 25,
+      },
+      {
+        id: 'hero_all_attributes_boost_5',
+        tier: 5,
+        name: '全能力提升 V',
+        description: '全能力 +5。',
+        kind: 'passive',
+        allAttributesBonus: 5, // 全能力+5
+        requiredLevel: 35,
+      },
+      {
+        id: 'hero_all_attributes_boost_6',
+        tier: 6,
+        name: '全能力提升 VI',
+        description: '全能力 +6。',
+        kind: 'passive',
+        allAttributesBonus: 6, // 全能力+6
+        requiredLevel: 45,
+      },
+    ],
+  },
+  // 羅德裝備被動技能 - 羅德之劍
+  {
+    flow: 'hero',
+    id: 'rod_equipment_sword',
+    aoe: false,
+    steps: [
+      {
+        id: 'rod_sword_passive',
+        tier: 7,
+        name: '羅德之劍之力',
+        description: '命中率 +10%，會心一擊率 +10%。',
+        kind: 'passive',
+        hitRateBonus: 10,
+        critRateBonus: 10,
+        requiredLevel: 9999,
+        isEquipmentSkill: true, // 標記為裝備技能
+        equipmentId: 'rod_sword', // 對應的裝備ID
+      },
+    ],
+  },
+  // 羅德裝備被動技能 - 羅德之盾
+  {
+    flow: 'hero',
+    id: 'rod_equipment_shield',
+    aoe: false,
+    steps: [
+      {
+        id: 'rod_shield_passive',
+        tier: 7,
+        name: '羅德之盾之力',
+        description: '閃避率 +20%。',
+        kind: 'passive',
+        dodgeRateBonus: 20,
+        requiredLevel:  9999,
+        isEquipmentSkill: true, // 標記為裝備技能
+        equipmentId: 'rod_shield', // 對應的裝備ID
+      },
+    ],
+  },
+  // 羅德裝備被動技能 - 羅德之鎧
+  {
+    flow: 'hero',
+    id: 'rod_equipment_armor',
+    aoe: false,
+    steps: [
+      {
+        id: 'rod_armor_passive',
+        tier: 7,
+        name: '羅德之鎧之力',
+        description: '被攻擊率 +20%。',
+        kind: 'passive',
+        aggroBoost: 0.2,
+        requiredLevel:  9999,
+        isEquipmentSkill: true, // 標記為裝備技能
+        equipmentId: 'rod_armor', // 對應的裝備ID
+      },
+    ],
+  },
+  // 羅德裝備被動技能 - 羅德紋章
+  {
+    flow: 'hero',
+    id: 'rod_equipment_emblem',
+    aoe: false,
+    steps: [
+      {
+        id: 'rod_emblem_passive',
+        tier: 7,
+        name: '羅德紋章之力',
+        description: '每回合 HP/MP 回復 10 點。',
+        kind: 'passive',
+        perTurnHpRegen: 10,
+        perTurnMpRegen: 10,
+        requiredLevel:  9999,
+        isEquipmentSkill: true, // 標記為裝備技能
+        equipmentId: 'rod_emblem', // 對應的裝備ID
+      },
+    ],
+  },
+  // 聖騎士特殊技能 - 復仇之道：至聖斬（主動技能）
+  {
+    flow: 'sword',
+    id: 'paladin_divine_slash',
+    aoe: false,
+    steps: [
+      {
+        id: 'paladin_divine_slash_1',
+        tier: 1,
+        name: '至聖斬',
+        description: '造成體力×120% + 治療能力×120%的攻擊傷害。',
+        kind: 'attack',
+        power: 50,
+        mpCost: 20,
+        requiredLevel: 999,
+        critChance: 0,
+        vitalityRatio: 1.2, // 體力×120%
+        recoveryRatio: 1.2, // 治療能力×120%
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'paladin', // 所屬進階職業
+        paladinPath: 'vengeance', // 復仇之道
+      },
+    ],
+  },
+  // 聖騎士特殊技能 - 復仇之道：復仇意志（被動技能）
+  {
+    flow: 'defender',
+    id: 'paladin_vengeance_will',
+    aoe: false,
+    steps: [
+      {
+        id: 'paladin_vengeance_will_1',
+        tier: 1,
+        name: '復仇意志',
+        description: '受到傷害時，按照傷害的一定比例對所有敵人造成傷害。',
+        kind: 'passive',
+        requiredLevel: 9999,
+        vengeanceDamageRatio: 0.5, // 按照受到傷害的50%反彈給所有敵人
+        vengeanceChance: 1.0, // 100%觸發（可調整）
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'paladin', // 所屬進階職業
+        paladinPath: 'vengeance', // 復仇之道
+      },
+    ],
+  },
+  // 聖騎士特殊技能 - 神聖之道：神聖護盾（主動技能）
+  {
+    flow: 'recovery',
+    id: 'paladin_sacred_shield',
+    aoe: false,
+    steps: [
+      {
+        id: 'paladin_sacred_shield_1',
+        tier: 1,
+        name: '神聖護盾',
+        description: '恢復50 + 1/2回復力，另外得到1/3體力的護盾。',
+        kind: 'heal', // 主動治療技能
+        power: 50, // 固定恢復值
+        recoveryRatio: 0.5, // 回復力 × 50%
+        mpCost: 15,
+        requiredLevel: 999,
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'paladin', // 所屬進階職業
+        paladinPath: 'sacred', // 神聖之道
+        shieldRatio: 0.33, // 護盾值 = 體力 × 1/3
+      },
+    ],
+  },
+  // 聖騎士特殊技能 - 神聖之道：守護意志（被動技能）
+  {
+    flow: 'defender',
+    id: 'paladin_guardian_will',
+    aoe: false,
+    steps: [
+      {
+        id: 'paladin_guardian_will_1',
+        tier: 1,
+        name: '守護意志',
+        description: '被攻擊時有25%機率回復所有人10%體力的HP。',
+        kind: 'passive',
+        requiredLevel:9999,
+        onHitHealChance: 0.25, // 25%機率
+        onHitHealRatio: 0.1, // 回復10%體力
+        onHitHealAoe: true, // 全體回復
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'paladin', // 所屬進階職業
+        paladinPath: 'sacred', // 神聖之道
+      },
+    ],
+  },
+  // 賢者特殊技能 - 元素之道：元素爆發（主動技能）
+  {
+    flow: 'magic',
+    id: 'sage_elemental_burst',
+    aoe: false,
+    steps: [
+      {
+        id: 'sage_elemental_burst_1',
+        tier: 1,
+        name: '元素爆發',
+        description: '造成固定值150 + 魔力×100%的魔法傷害，30%機率造成1.5倍傷害。',
+        kind: 'attack',
+        power: 150,
+        mpCost: 50,
+        requiredLevel: 999,
+        critChance: 30, // 30%機率造成1.5倍傷害
+        magicRatio: 1.0, // 魔力×100%
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'sage', // 所屬進階職業
+        sagePath: 'elemental', // 元素之道
+      },
+    ],
+  },
+  // 賢者特殊技能 - 元素之道：元素共鳴（被動技能）
+  {
+    flow: 'magic',
+    id: 'sage_elemental_resonance',
+    aoe: false,
+    steps: [
+      {
+        id: 'sage_elemental_resonance_1',
+        tier: 1,
+        name: '元素共鳴',
+        description: '有20%機率使用魔法或恢復時不消耗MP。',
+        kind: 'passive',
+        requiredLevel: 9999,
+        freeSpellChance: 0.2, // 20%機率不消耗MP
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'sage', // 所屬進階職業
+        sagePath: 'elemental', // 元素之道
+      },
+    ],
+  },
+  // 賢者特殊技能 - 治愈之道：防死護盾（主動技能）
+  {
+    flow: 'recovery',
+    id: 'sage_death_ward',
+    aoe: true,
+    steps: [
+      {
+        id: 'sage_death_ward_1',
+        tier: 1,
+        name: '防死護盾',
+        description: '所有友方獲得防死效果，生命降到0時會留下1點HP，然後效果消失。',
+        kind: 'enhance', // 使用heal類型，但實際是buff技能
+        mpCost: 30,
+        requiredLevel: 999,
+        deathWard: true, // 防死效果
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'sage', // 所屬進階職業
+        sagePath: 'healing', // 治愈之道
+      },
+    ],
+  },
+  // 賢者特殊技能 - 治愈之道：神聖回響（被動技能）
+  {
+    flow: 'recovery',
+    id: 'sage_sacred_echo',
+    aoe: false,
+    steps: [
+      {
+        id: 'sage_sacred_echo_1',
+        tier: 1,
+        name: '神聖回響',
+        description: '恢復HP時，會得到一個20%治療值的緩慢恢復，下回合開始時回復，可累加。',
+        kind: 'passive',
+        requiredLevel: 9999,
+        healingEchoRatio: 0.2, // 20%治療值轉為緩慢恢復
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'sage', // 所屬進階職業
+        sagePath: 'healing', // 治愈之道
+      },
+    ],
+  },
+  // 武器大師特殊技能 - 劍神之路：劍神之路（主動技能）
+  {
+    flow: 'sword',
+    id: 'weaponmaster_sword_god_path',
+    aoe: false,
+    steps: [
+      {
+        id: 'weaponmaster_sword_god_path_1',
+        tier: 1,
+        name: '劍神降臨',
+        description: '消耗最多最大MP的一半，最多消耗到全空MP，造成 1 + 2x(消耗MP/最大MP一半) 倍的攻擊力傷害。',
+        kind: 'attack',
+        power: 0, // 基礎傷害為0，實際傷害由MP消耗計算
+        mpCost: 0, // 動態MP消耗，在技能執行時計算
+        requiredLevel: 999,
+        dynamicMpCost: true, // 標記為動態MP消耗
+        mpCostMaxRatio: 0.5, // 最多消耗最大MP的一半
+        damageMultiplierBase: 1, // 基礎倍率
+        damageMultiplierPerMp: 2, // 每消耗最大MP一半的倍率加成
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'weaponmaster', // 所屬進階職業
+        weaponmasterPath: 'sword_god', // 劍神之路
+      },
+    ],
+  },
+  // 武器大師特殊技能 - 劍神之路：劍氣縱橫（被動技能）
+  {
+    flow: 'sword',
+    id: 'weaponmaster_sword_aura',
+    aoe: false,
+    steps: [
+      {
+        id: 'weaponmaster_sword_aura_1',
+        tier: 1,
+        name: '劍氣縱橫',
+        description: '普攻變成全體攻擊，但造成傷害只有8成（攻擊力-防）×0.8。',
+        kind: 'passive',
+        requiredLevel: 9999,
+        normalAttackAoe: true, // 普攻變為全體攻擊
+        normalAttackDamageRatio: 0.8, // 傷害為8成
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'weaponmaster', // 所屬進階職業
+        weaponmasterPath: 'sword_god', // 劍神之路
+      },
+    ],
+  },
+  // 武器大師特殊技能 - 刺客之路：暗影突襲（主動技能）
+  {
+    flow: 'agility',
+    id: 'weaponmaster_assassin_path',
+    aoe: false,
+    steps: [
+      {
+        id: 'weaponmaster_assassin_path_1',
+        tier: 1,
+        name: '暗影突襲',
+        description: '攻擊力=敏捷×100% + 攻擊×50% + (20%敏捷的中毒+降低20%攻擊)持續2回合。',
+        kind: 'attack',
+        power: 0, // 基礎傷害為0，實際傷害由敏捷和攻擊計算
+        mpCost: 30,
+        requiredLevel: 999,
+        agilityRatio: 1.0, // 敏捷×100%
+        attackRatio: 0.5, // 攻擊×50%
+        poisonRatio: 0.2, // 20%敏捷的中毒傷害
+        attackDownRatio: 0.2, // 降低20%攻擊
+        debuffDuration: 2, // debuff持續2回合
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'weaponmaster', // 所屬進階職業
+        weaponmasterPath: 'assassin', // 刺客之路
+      },
+    ],
+  },
+  // 武器大師特殊技能 - 刺客之路：破甲之刃（被動技能）
+  {
+    flow: 'agility',
+    id: 'weaponmaster_armor_pierce',
+    aoe: false,
+    steps: [
+      {
+        id: 'weaponmaster_armor_pierce_1',
+        tier: 1,
+        name: '破甲之刃',
+        description: '進入戰鬥後得到一個buff，物理攻擊可以無視敵方的防力，造成傷害。',
+        kind: 'passive',
+        requiredLevel: 9999,
+        ignoreDefense: true, // 無視防禦
+        isAdvancedSkill: true, // 標記為進階職業特殊技能
+        advancedClass: 'weaponmaster', // 所屬進階職業
+        weaponmasterPath: 'assassin', // 刺客之路
+      },
+    ],
+  },
+];
+  window.GameData = window.GameData || {};
+  window.GameData.SKILL_CHAINS = SKILL_CHAINS;
+})();

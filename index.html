@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>勇者鬥弱鴿 Rogue's Quest</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="alternate icon" href="./favicon.ico" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- 背景圖片區域 -->
+      <div id="background-container" class="background-container">
+        <img id="background-image" src="" alt="背景" />
+      </div>
+
+      <!-- 遊戲內容區域 -->
+      <div id="game-content" class="game-content">
+        <!-- 左側：可用道具/魔法面板（非戰鬥時顯示） -->
+        <div id="field-actions-panel" class="field-actions-panel hidden"></div>
+        
+        <!-- 左上方：我方HP/MP（戰鬥和非戰鬥時都顯示） -->
+        <div id="battle-hero-stats" class="battle-hero-stats"></div>
+        
+        <!-- 路線選擇對話框 -->
+        <div id="route-dialog" class="dialog-box hidden">
+          <div class="dialog-content">
+            <h2 id="route-title" class="dialog-title"></h2>
+            <p id="route-description" class="dialog-description"></p>
+            <div id="route-options" class="dialog-options"></div>
+          </div>
+        </div>
+
+        <!-- 戰鬥UI -->
+        <div id="battle-ui" class="battle-ui hidden">
+          <!-- 中間：怪物圖片顯示區域 -->
+          <div id="battle-enemy-sprites" class="battle-enemy-sprites"></div>
+          
+          <!-- 底部：指令、怪物列表、戰鬥紀錄（水平排列） -->
+          <div class="battle-bottom-panel">
+            <div id="battle-commands" class="battle-commands"></div>
+            <div id="battle-enemies" class="battle-enemies"></div>
+            <div id="battle-log" class="battle-log"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 狀態面板（下方） -->
+      <section id="status-panel" class="status-panel pixel-frame">
+        <div id="hero-panel" class="hero-panel">
+          <div id="hero-status-section" class="hero-status-section"></div>
+          <div id="skills-panel" class="skills-panel">
+            <div id="active-skills-panel" class="skills-column"></div>
+            <div id="passive-skills-panel" class="skills-column"></div>
+          </div>
+        </div>
+        <div id="equipment-panel" class="equipment-panel"></div>
+        <div class="status-right-panel">
+          <div id="inventory-panel" class="inventory-panel"></div>
+        </div>
+      </section>
+
+      <!-- 冒險日誌（右側） -->
+      <div id="log-panel" class="log-panel pixel-frame">
+        <h3 id="log-panel-header" class="log-panel-header" onclick="toggleLogPanel()" style="cursor: pointer;">冒險日誌 ▶</h3>
+        <ul id="log-list" class="log-list-collapsed"></ul>
+      </div>
+    </div>
+
+    <div id="modal-layer" class="hidden">
+      <div class="modal pixel-frame" id="level-modal"></div>
+    </div>
+
+    <div id="start-screen" class="start-screen">
+      <div class="start-card pixel-frame">
+        <h1>勇者鬥弱鴿</h1>
+        <p>Rogue's Quest</p>
+        <div class="menu-buttons">
+          <button id="btn-continue" class="primary-btn">繼續冒險</button>
+          <button id="btn-new" class="primary-btn">新冒險</button>
+          <button id="btn-settings" class="ghost-btn">設定</button>
+        </div>
+        <p id="save-info" class="save-info">讀取暫存中...</p>
+      </div>
+    </div>
+
+    <script src="./src/config.js"></script>
+    <script src="./src/attributes.js"></script>
+    <script src="./src/nodeTypes.js"></script>
+    <script src="./src/flowPalette.js"></script>
+    <script src="./src/heroTypes.js"></script>
+    <script src="./src/skills.js"></script>
+    <script src="./src/items.js"></script>
+    <script src="./src/equipment.js"></script>
+    <script src="./src/monsters.js"></script>
+    <script src="./src/relics.js"></script>
+    <script src="./src/data.js"></script>
+    <script src="./src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,1668 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  --bg: #1a1d2c;
+  --panel: #2a2f45;
+  --accent: #f4b183;
+  --text: #f4f4f4;
+  --shadow: #0d0f19;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14.4px;
+  letter-spacing: 0.5px;
+  overflow: hidden;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 背景容器 */
+.background-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 70%;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.background-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+
+/* 遊戲內容區域 */
+.game-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 70%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 左側面板：可用道具/魔法（非戰鬥時） */
+.field-actions-panel {
+  position: absolute;
+  left: 16px;
+  bottom: 32%;
+  width: 200px;
+  max-height: 35vh;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.8);
+  border: 3px solid var(--text);
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.field-actions-panel.hidden {
+  display: none;
+}
+
+.field-actions-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-actions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-actions-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--accent);
+  border-bottom: 2px solid var(--text);
+  padding-bottom: 4px;
+  font-family: 'Press Start 2P', monospace;
+}
+
+.field-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.magic-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.character-magic-section,
+.companion-magic-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.character-magic-title,
+.companion-magic-title {
+  margin: 0 0 4px;
+  font-size: 10px;
+  color: var(--accent);
+  font-family: 'Press Start 2P', monospace;
+  opacity: 0.9;
+}
+
+.field-action-btn {
+  background: transparent;
+  border: 2px solid var(--text);
+  color: var(--text);
+  padding: 8px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.field-action-btn:hover:not(:disabled) {
+  background: rgba(244, 177, 131, 0.2);
+  border-color: var(--accent);
+}
+
+.field-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.field-action-btn strong {
+  font-size: 10px;
+  color: var(--text);
+}
+
+.field-action-btn span {
+  font-size: 8px;
+  opacity: 0.8;
+}
+
+/* 對話框樣式 */
+/* 路線選擇對話框 - 顯示在HP/MP上方 */
+#route-dialog {
+  position: relative;
+  z-index: 6;
+}
+
+.dialog-box {
+  background: transparent;
+  border: 4px solid var(--text);
+  padding: 32px;
+  min-width: 600px;
+  max-width: 800px;
+  box-shadow: 0 0 0 4px var(--shadow), inset 0 0 0 4px var(--shadow);
+}
+
+.dialog-box.hidden {
+  display: none;
+}
+
+.dialog-content {
+  background: rgba(0, 0, 0, 0.7);
+  padding: 28px;
+  border: 2px solid var(--text);
+}
+
+.dialog-title {
+  margin: 0 0 16px;
+  font-size: 24px;
+  color: var(--accent);
+}
+
+.dialog-description {
+  margin: 0 0 20px;
+  font-size: 14.4px;
+  line-height: 1.6;
+}
+
+.dialog-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dialog-option {
+  background: transparent;
+  border: 3px solid var(--text);
+  color: var(--text);
+  padding: 16px 20px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14.4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.dialog-option:hover:not(:disabled) {
+  background: rgba(244, 177, 131, 0.2);
+  border-color: var(--accent);
+}
+
+.dialog-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialog-option small {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* 戰鬥UI */
+.battle-ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+  padding: 16px;
+}
+
+.battle-ui.hidden {
+  display: none;
+}
+
+/* 左上方：我方HP/MP */
+.battle-hero-stats {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 4;
+  /* 在戰鬥UI內時使用grid定位，非戰鬥時使用絕對定位 */
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  justify-self: start;
+}
+
+/* 中間：怪物圖片顯示區域 */
+.battle-enemy-sprites {
+  position: absolute;
+  /* 稍微往上移，讓下方指令區有更多空間 */
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 60px;
+  /* 怪物在背景之上，但在指令/面板之下 */
+  z-index: 2;
+  pointer-events: none;
+}
+
+.enemy-sprite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+
+.enemy-sprite.defeated {
+  opacity: 0.3;
+  filter: grayscale(100%);
+}
+
+.enemy-sprite.selected {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 10px var(--accent));
+}
+
+.enemy-sprite img {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* 攻擊動畫 */
+.enemy-sprite.attacked {
+  animation: attackHit 0.4s ease-in-out;
+}
+
+@keyframes attackHit {
+  0% {
+    transform: translateX(0) scale(1);
+    filter: brightness(1);
+  }
+  25% {
+    transform: translateX(-10px) scale(1.05);
+    filter: brightness(1.5);
+  }
+  50% {
+    transform: translateX(10px) scale(0.95);
+    filter: brightness(2);
+  }
+  75% {
+    transform: translateX(-5px) scale(1.02);
+    filter: brightness(1.3);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* 會心一擊動畫 */
+.enemy-sprite.critical-hit {
+  animation: criticalHit 0.6s ease-in-out;
+}
+
+@keyframes criticalHit {
+  0% {
+    transform: translateX(0) scale(1) rotate(0deg);
+    filter: brightness(1) hue-rotate(0deg);
+  }
+  20% {
+    transform: translateX(-15px) scale(1.1) rotate(-5deg);
+    filter: brightness(2) hue-rotate(30deg);
+  }
+  40% {
+    transform: translateX(15px) scale(0.9) rotate(5deg);
+    filter: brightness(2.5) hue-rotate(60deg);
+  }
+  60% {
+    transform: translateX(-10px) scale(1.05) rotate(-3deg);
+    filter: brightness(2) hue-rotate(30deg);
+  }
+  80% {
+    transform: translateX(5px) scale(0.98) rotate(2deg);
+    filter: brightness(1.5) hue-rotate(15deg);
+  }
+  100% {
+    transform: translateX(0) scale(1) rotate(0deg);
+    filter: brightness(1) hue-rotate(0deg);
+  }
+}
+
+/* 火魔法動畫 */
+.enemy-sprite.fire-hit {
+  animation: fireHit 0.6s ease-out;
+}
+
+@keyframes fireHit {
+  0% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 rgba(255, 100, 0, 0);
+  }
+  20% {
+    filter: brightness(1.8) hue-rotate(10deg);
+    box-shadow: 0 0 20px rgba(255, 100, 0, 0.8), 0 0 40px rgba(255, 150, 0, 0.6);
+  }
+  40% {
+    filter: brightness(2.2) hue-rotate(20deg);
+    box-shadow: 0 0 30px rgba(255, 80, 0, 1), 0 0 60px rgba(255, 120, 0, 0.8);
+    transform: scale(1.1);
+  }
+  60% {
+    filter: brightness(1.5) hue-rotate(10deg);
+    box-shadow: 0 0 20px rgba(255, 100, 0, 0.6), 0 0 40px rgba(255, 150, 0, 0.4);
+  }
+  80% {
+    filter: brightness(1.2) hue-rotate(5deg);
+    box-shadow: 0 0 10px rgba(255, 100, 0, 0.3);
+  }
+  100% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 rgba(255, 100, 0, 0);
+    transform: scale(1);
+  }
+}
+
+/* 冰魔法動畫 */
+.enemy-sprite.ice-hit {
+  animation: iceHit 0.6s ease-out;
+}
+
+@keyframes iceHit {
+  0% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 rgba(100, 200, 255, 0);
+  }
+  20% {
+    filter: brightness(1.5) hue-rotate(-30deg) saturate(1.5);
+    box-shadow: 0 0 20px rgba(100, 200, 255, 0.8), 0 0 40px rgba(150, 220, 255, 0.6);
+  }
+  40% {
+    filter: brightness(1.8) hue-rotate(-40deg) saturate(1.8);
+    box-shadow: 0 0 30px rgba(80, 180, 255, 1), 0 0 60px rgba(120, 210, 255, 0.8);
+    transform: scale(0.95);
+  }
+  60% {
+    filter: brightness(1.3) hue-rotate(-20deg) saturate(1.3);
+    box-shadow: 0 0 20px rgba(100, 200, 255, 0.6), 0 0 40px rgba(150, 220, 255, 0.4);
+  }
+  80% {
+    filter: brightness(1.1) hue-rotate(-10deg);
+    box-shadow: 0 0 10px rgba(100, 200, 255, 0.3);
+  }
+  100% {
+    filter: brightness(1) hue-rotate(0deg) saturate(1);
+    box-shadow: 0 0 0 rgba(100, 200, 255, 0);
+    transform: scale(1);
+  }
+}
+
+/* 閃電魔法動畫 */
+.enemy-sprite.lightning-hit {
+  animation: lightningHit 0.5s ease-out;
+}
+
+@keyframes lightningHit {
+  0% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 rgba(255, 255, 150, 0);
+  }
+  10% {
+    filter: brightness(2.5) hue-rotate(60deg);
+    box-shadow: 0 0 30px rgba(255, 255, 150, 1), 0 0 60px rgba(255, 255, 200, 0.8);
+    transform: scale(1.15);
+  }
+  20% {
+    filter: brightness(1.8) hue-rotate(40deg);
+    box-shadow: 0 0 20px rgba(255, 255, 150, 0.8), 0 0 40px rgba(255, 255, 200, 0.6);
+  }
+  30% {
+    filter: brightness(2.2) hue-rotate(50deg);
+    box-shadow: 0 0 25px rgba(255, 255, 150, 0.9), 0 0 50px rgba(255, 255, 200, 0.7);
+    transform: scale(1.05);
+  }
+  50% {
+    filter: brightness(1.5) hue-rotate(30deg);
+    box-shadow: 0 0 15px rgba(255, 255, 150, 0.6);
+  }
+  70% {
+    filter: brightness(1.2) hue-rotate(15deg);
+    box-shadow: 0 0 8px rgba(255, 255, 150, 0.3);
+  }
+  100% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 rgba(255, 255, 150, 0);
+    transform: scale(1);
+  }
+}
+
+/* 爆炸魔法動畫 */
+.enemy-sprite.explosion-hit {
+  animation: explosionHit 0.7s ease-out;
+}
+
+@keyframes explosionHit {
+  0% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 rgba(255, 150, 0, 0);
+    transform: scale(1);
+  }
+  15% {
+    filter: brightness(2) hue-rotate(15deg);
+    box-shadow: 0 0 40px rgba(255, 150, 0, 0.9), 0 0 80px rgba(255, 200, 0, 0.7);
+    transform: scale(1.2);
+  }
+  30% {
+    filter: brightness(2.5) hue-rotate(25deg);
+    box-shadow: 0 0 50px rgba(255, 100, 0, 1), 0 0 100px rgba(255, 150, 0, 0.9), 0 0 150px rgba(255, 200, 0, 0.6);
+    transform: scale(1.3) rotate(5deg);
+  }
+  45% {
+    filter: brightness(1.8) hue-rotate(20deg);
+    box-shadow: 0 0 35px rgba(255, 120, 0, 0.8), 0 0 70px rgba(255, 170, 0, 0.6);
+    transform: scale(1.1) rotate(-3deg);
+  }
+  60% {
+    filter: brightness(1.4) hue-rotate(10deg);
+    box-shadow: 0 0 25px rgba(255, 140, 0, 0.6), 0 0 50px rgba(255, 180, 0, 0.4);
+    transform: scale(0.95);
+  }
+  80% {
+    filter: brightness(1.1) hue-rotate(5deg);
+    box-shadow: 0 0 15px rgba(255, 150, 0, 0.4);
+    transform: scale(1.02);
+  }
+  100% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 rgba(255, 150, 0, 0);
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.enemy-sprite-name {
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid var(--text);
+  padding: 4px 8px;
+  font-size: 10.8px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* 底部面板：指令、怪物、戰鬥紀錄（水平排列） */
+.battle-bottom-panel {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: end;
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  max-height: 250px;
+}
+
+/* 指令（佔1/4寬度） */
+.battle-commands {
+  position: relative;
+  z-index: 5; /* 指令面板顯示在怪物圖層之上 */
+  flex: 0 0 25%;
+  overflow-y: auto;
+  max-height: 250px;
+}
+
+/* 怪物列表（佔1/2寬度） */
+.battle-enemies {
+  flex: 0 0 50%;
+  overflow-y: auto;
+  max-height: 250px;
+  z-index: 10;
+}
+
+/* 戰鬥紀錄（佔1/4寬度） */
+.battle-log {
+  flex: 0 0 25%;
+  overflow-y: auto;
+}
+
+/* 確保所有區域內的 battle-stat-box 都正確顯示 */
+.battle-commands > .battle-stat-box,
+.battle-enemies > .battle-stat-box,
+.battle-log > .battle-stat-box {
+  width: 100%;
+  /* 移除 height: 100%，讓內容決定高度 */
+}
+
+.battle-stat-box {
+  background: rgba(0, 0, 0, 0.7);
+  border: 3px solid var(--text);
+  padding: 12px;
+  min-width: 200px;
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.battle-log-list {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.battle-log-entry {
+  margin: 4px 0;
+  font-size: 9.6px;
+  line-height: 1.4;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}
+
+.battle-stat-label {
+  margin: 0 0 8px;
+  font-size: 13.2px;
+  color: var(--accent);
+  border-bottom: 2px solid var(--text);
+  padding-bottom: 4px;
+}
+
+.battle-stat-box p {
+  margin: 4px 0;
+  font-size: 10.8px;
+  line-height: 1.4;
+}
+
+.battle-command-btn {
+  background: transparent;
+  border: 2px solid var(--text);
+  color: var(--text);
+  padding: 8px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10.8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 4px 0;
+  width: 100%;
+  text-align: left;
+}
+
+.battle-command-btn:hover:not(:disabled) {
+  background: rgba(244, 177, 131, 0.2);
+  border-color: var(--accent);
+}
+
+.battle-command-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.enemy-info {
+  display: flex;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid var(--text);
+  padding: 8px;
+  margin: 6px 0;
+  font-size: 10.8px;
+  cursor: default;
+  transition: all 0.2s;
+}
+
+.enemy-info.selectable {
+  cursor: pointer;
+  border-color: var(--accent);
+}
+
+.enemy-info.selectable:hover {
+  background: rgba(244, 177, 131, 0.3);
+  transform: scale(1.05);
+}
+
+.enemy-info.selected {
+  background: rgba(244, 177, 131, 0.4);
+  border-color: var(--accent);
+  border-width: 3px;
+}
+
+.enemy-info.defeated {
+  opacity: 0.4;
+  border-color: #666;
+}
+
+.enemy-info p {
+  margin: 2px 0;
+  line-height: 1.4;
+}
+
+.enemy-info-left {
+  flex: 1;
+}
+
+.enemy-info-right {
+  flex: 0 0 auto;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.enemy-info-right p {
+  margin: 0;
+}
+
+.enemy-details {
+  font-size: 0.9em;
+}
+
+.enemy-details p {
+  margin: 4px 0;
+  font-size: 0.85em;
+}
+
+.enemy-rates {
+  color: #9fc5e8;
+  font-weight: bold;
+}
+
+.enemy-attributes {
+  font-size: 9.6px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4px;
+}
+
+.select-hint {
+  color: var(--accent);
+  font-size: 9.6px;
+  margin-top: 4px;
+}
+
+/* 狀態面板（下方） */
+.status-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 30%;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  padding: 0;
+  background: var(--panel);
+  border-top: 4px solid var(--text);
+  overflow: hidden;
+}
+
+.hero-panel {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 2px solid var(--text);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.hero-status-section {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.skills-panel {
+  display: none;
+}
+
+.skills-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.equipment-panel {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  border-right: 2px solid var(--text);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.equipment-panel-header {
+  height: 40px;
+  padding: 8px 16px;
+  border-bottom: 2px solid var(--text);
+  flex-shrink: 0;
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.equipment-panel-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.status-right-panel {
+  grid-column: 3;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.inventory-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.inventory-panel-header {
+  height: 40px;
+  padding: 8px 16px;
+  border-bottom: 2px solid var(--text);
+  flex-shrink: 0;
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.inventory-panel-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.items-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+}
+
+.status-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--text);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.status-tab {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-right: 2px solid var(--text);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10.8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.status-tab:last-child {
+  border-right: none;
+}
+
+.status-tab:hover {
+  background: rgba(244, 177, 131, 0.2);
+}
+
+.status-tab.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.status-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.status-content {
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.status-tab-content {
+  display: none;
+  height: 100%;
+}
+
+.status-tab-content.active {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  height: 100%;
+}
+
+.skills-column,
+.items-column {
+  overflow-y: auto;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.items-column {
+  min-height: 0;
+}
+
+/* 裝備面板 */
+.equipment-panel h3 {
+  margin: 0 0 12px;
+  font-size: 14.4px;
+  color: var(--accent);
+}
+
+.equipment-slots {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.equipment-slot {
+  border: 2px solid var(--text);
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.slot-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--accent);
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 4px;
+}
+
+.equipment-empty {
+  font-size: 10.8px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 8px;
+  text-align: center;
+  font-style: italic;
+}
+
+.equipment-item {
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.equipment-name {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.equipment-desc {
+  font-size: 9.6px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 6px;
+}
+
+.equipment-stats {
+  font-size: 9.6px;
+  color: #9fc5e8;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.unequip-btn {
+  padding: 4px 8px;
+  border: 2px solid var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8.4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.unequip-btn:hover {
+  background: rgba(255, 68, 68, 0.3);
+  border-color: #ff4444;
+}
+
+/* 冒險日誌（右側） */
+.log-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 300px;
+  max-height: 70%;
+  z-index: 3;
+  padding: 16px;
+  background: var(--panel);
+  border-left: 4px solid var(--text);
+  border-bottom: 4px solid var(--text);
+  overflow-y: auto;
+}
+
+/* 角色切換按鈕 */
+.character-switch {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.character-switch-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid var(--text);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10.8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.character-switch-btn:hover {
+  background: rgba(244, 177, 131, 0.2);
+  border-color: var(--accent);
+}
+
+.character-switch-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  transform: scale(1.15);
+  font-size: 12px;
+  font-weight: bold;
+  box-shadow: 0 0 10px rgba(244, 177, 131, 0.5);
+}
+
+.hero-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+}
+
+.hero-info p {
+  margin: 4px 0;
+}
+
+.attribute-panel ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.attribute-panel li {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.2);
+}
+
+.battle-stats-panel {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--accent);
+}
+
+.battle-stats-panel h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--accent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 4px;
+}
+
+.battle-stats-panel p {
+  margin: 6px 0;
+  font-size: 10.8px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.skill-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skill-list li {
+  border: 2px solid var(--accent);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 10.8px;
+}
+
+.skills-column h4,
+.items-column h4 {
+  margin: 0 0 8px;
+  font-size: 13.2px;
+  color: var(--accent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 4px;
+}
+
+.log-panel h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.log-panel h3:hover {
+  color: var(--accent);
+}
+
+.log-panel ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 9.6px;
+  line-height: 1.6;
+  max-height: 400px;
+  overflow-y: auto;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  opacity: 1;
+}
+
+.log-list-collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.log-panel li {
+  margin: 4px 0;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* 模態視窗 */
+#modal-layer {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 20, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 300;
+}
+
+#modal-layer.hidden {
+  display: none;
+}
+
+.modal {
+  max-width: 720px;
+  width: 90%;
+  background: var(--panel);
+  border: 4px solid var(--text);
+  padding: 24px;
+  box-shadow: 0 0 0 4px var(--shadow), inset 0 0 0 4px var(--shadow);
+}
+
+/* 開始選單 */
+.start-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 20, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  z-index: 200;
+}
+
+.start-screen.hidden {
+  display: none;
+}
+
+.start-card {
+  width: min(380px, 90vw);
+  text-align: center;
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.primary-btn,
+.ghost-btn {
+  padding: 12px 24px;
+  border: 3px solid var(--text);
+  background: var(--panel);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--panel);
+  color: #666;
+}
+
+.ghost-btn {
+  background: transparent;
+}
+
+.ghost-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 英雄類型選擇 */
+.hero-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.hero-type-card {
+  background: rgba(0, 0, 0, 0.3);
+  border: 3px solid var(--text);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  position: relative;
+}
+
+.hero-type-card:hover {
+  background: rgba(244, 177, 131, 0.2);
+  border-color: var(--accent);
+  transform: scale(1.02);
+}
+
+.type-icon {
+  font-size: 57.6px;
+  text-align: center;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.hero-type-card h3 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.type-description {
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.type-bonus {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.type-bonus p {
+  margin: 4px 0;
+  color: #ffffff;
+}
+
+.growth-desc {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(244, 177, 131, 0.1);
+  border-left: 3px solid var(--accent);
+  font-size: 10.8px;
+  line-height: 1.5;
+}
+
+/* 技能選擇 */
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.skill-card {
+  background: rgba(0, 0, 0, 0.3);
+  border: 3px solid var(--text);
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.skill-card:hover {
+  background: rgba(244, 177, 131, 0.2);
+  border-color: var(--accent);
+}
+
+.skill-badges {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.skill-card .badge {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 9.6px;
+  margin-bottom: 0;
+  border-radius: 2px;
+}
+
+.skill-card h3 {
+  margin: 4px 0;
+  font-size: 13.2px;
+  color: #ffffff;
+}
+
+.skill-card p {
+  margin: 4px 0;
+  font-size: 10.8px;
+  line-height: 1.4;
+  color: #ffffff;
+}
+
+.skill-card .tier {
+  color: #ffffff;
+}
+
+/* 能力提升畫面 */
+.level-up-title {
+  font-size: 19.2px;
+  color: var(--accent);
+  text-align: center;
+  margin: 16px 0;
+  font-weight: bold;
+}
+
+.stats-upgrade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--text);
+}
+
+.stat-change-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid var(--accent);
+}
+
+.stat-name {
+  font-size: 13.2px;
+  color: #ffffff;
+  font-weight: bold;
+  min-width: 80px;
+}
+
+.stat-change {
+  font-size: 13.2px;
+  color: var(--accent);
+  font-weight: bold;
+  font-family: 'Press Start 2P', monospace;
+}
+
+.continue-btn {
+  padding: 12px 24px;
+  border: 3px solid var(--text);
+  background: var(--accent);
+  color: var(--bg);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 16px auto;
+  display: block;
+}
+
+.continue-btn:hover {
+  background: #f4b183;
+  transform: scale(1.05);
+}
+
+/* 事件對話框 */
+.event-message {
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--text);
+  margin: 20px 0;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 戰鬥結果對話框 */
+.battle-result-content {
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--text);
+  margin: 20px 0;
+}
+
+.battle-reward-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid var(--accent);
+}
+
+.reward-label {
+  font-size: 13.2px;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.reward-value {
+  font-size: 13.2px;
+  color: var(--accent);
+  font-weight: bold;
+  font-family: 'Press Start 2P', monospace;
+}
+
+.battle-drops {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.drops-title {
+  font-size: 13.2px;
+  color: var(--accent);
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.drop-item {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 12px;
+  color: #ffffff;
+}
+
+.drop-item.owned {
+  opacity: 0.6;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pixel-frame {
+  background: var(--panel);
+  border: 4px solid var(--text);
+  padding: 16px;
+  box-shadow: 0 0 0 4px var(--shadow), inset 0 0 0 4px var(--shadow);
+}
+
+/* 商店樣式 */
+.shop-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--text);
+  padding-bottom: 8px;
+}
+
+.shop-tab {
+  padding: 8px 16px;
+  border: 2px solid var(--text);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10.8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shop-tab:hover {
+  background: rgba(244, 177, 131, 0.2);
+}
+
+.shop-tab.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.shop-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.shop-item {
+  border: 2px solid var(--text);
+  padding: 12px;
+  margin-bottom: 12px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.shop-item.owned {
+  opacity: 0.6;
+}
+
+.shop-item.unaffordable {
+  opacity: 0.5;
+}
+
+.shop-item-name {
+  font-size: 13.2px;
+  font-weight: bold;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.shop-item-desc {
+  font-size: 9.6px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 6px;
+}
+
+.shop-item-stats {
+  font-size: 9.6px;
+  color: #9fc5e8;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.shop-item-price {
+  font-size: 10.8px;
+  color: #f4b183;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+
+.shop-item-owned {
+  font-size: 9.6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+.shop-buy-btn {
+  padding: 6px 12px;
+  border: 2px solid var(--text);
+  background: rgba(244, 177, 131, 0.3);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9.6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.shop-buy-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.shop-buy-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 裝備庫存列表 */
+.equipment-inventory-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.equip-from-inventory-btn {
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(159, 197, 232, 0.2);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8.4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.equip-from-inventory-btn:hover {
+  background: rgba(159, 197, 232, 0.4);
+  border-color: #9fc5e8;
+}
+
+/* 道具欄樣式 */
+.inventory-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.inventory-item {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--text);
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-name {
+  font-weight: bold;
+  color: var(--accent);
+  font-size: 13.2px;
+}
+
+.item-desc {
+  font-size: 10.8px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.item-qty {
+  font-size: 10.8px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.drop-item-btn {
+  padding: 4px 8px;
+  border: 2px solid var(--text);
+  background: rgba(255, 68, 68, 0.3);
+  color: var(--text);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9.6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.drop-item-btn:hover {
+  background: rgba(255, 68, 68, 0.5);
+  border-color: #ff4444;
+}
+
+/* 技能面板樣式 */
+.skill-section {
+  margin-bottom: 16px;
+}
+
+.skill-section h4 {
+  font-size: 13.2px;
+  color: var(--accent);
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 4px;
+}
