@@ -31,7 +31,7 @@ window.GameData.GAME_CONFIG = {
     6: 0,  // 階層6：所有屬性+25
   },
   // 初始裝備階層（如果 >= 1，則在創建勇者時裝備該階層的該流派裝備）
-  initialEquipmentTier:4, // 0 表示不裝備初始裝備
+  initialEquipmentTier:0, // 0 表示不裝備初始裝備
   // 魔王部下配置：每個魔王可以配置部下ID數組
   // 格式：{ bossId: [minionId1, minionId2, ...] }
   bossMinions: {
