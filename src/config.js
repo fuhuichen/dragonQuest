@@ -5,8 +5,8 @@ window.GameData.GAME_CONFIG = {
   maxCompanionCount: 3, // 最大同伴數量上限
   defaultTargetLevel: 40, // 預設目標等級
   companionAdvancementLevel: 40, // 伙伴可以進階職業的等級
-  startStage:4, // 起始階段（1-6）
-  startNodeIndex:19, // 起始節點索引（0-19）
+  startStage:1, // 起始階段（1-6）
+  startNodeIndex:0, // 起始節點索引（0-19）
   // 成長配置
   heroGrowthMin: 1, // 主角每等級基本成長最小值
   heroGrowthMin: 3.0, // 主角每等級基本成長最大值
