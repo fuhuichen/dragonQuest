@@ -86,6 +86,8 @@ const state = {
     battleResult: null, // 戰鬥結果，用於顯示掉落物品
     itemChoice: null, // 道具選擇（當道具欄滿時）
     logExpanded: false, // 冒險日誌是否展開（默認收起）
+    accordionState: { hero: true, equipment: false, inventory: false }, // 手機 accordion 展開狀態
+    battleTab: 'commands', // 手機戰鬥 tab: 'commands', 'enemies', 'log'
     fieldItemSelection: null, // 非戰鬥道具使用選擇目標（itemId）
     fieldSkillSelection: null, // 非戰鬥技能使用選擇目標（{skillId, characterType}）
     settings: null, // 設定對話框狀態
@@ -323,6 +325,38 @@ console.log('[MAIN.JS] DOM 元素獲取完成');
 console.log('[MAIN.JS] dom.newBtn:', dom.newBtn);
 console.log('[MAIN.JS] dom.settingsBtn:', dom.settingsBtn);
 console.log('[MAIN.JS] dom.continueBtn:', dom.continueBtn);
+
+// === RWD: Device type detection ===
+function getDeviceType() {
+  const w = window.innerWidth;
+  if (w < 768) return 'mobile';
+  if (w <= 1024) return 'tablet';
+  return 'desktop';
+}
+let currentDeviceType = getDeviceType();
+
+window.addEventListener('resize', () => {
+  const newType = getDeviceType();
+  if (newType !== currentDeviceType) {
+    currentDeviceType = newType;
+    renderAll();
+  }
+});
+
+// === RWD: Accordion toggle (mobile status panels) ===
+function toggleAccordion(panelId) {
+  if (!state.ui.accordionState) return;
+  state.ui.accordionState[panelId] = !state.ui.accordionState[panelId];
+  renderAll();
+}
+window.toggleAccordion = toggleAccordion;
+
+// === RWD: Battle tab switch (mobile) ===
+function switchBattleTab(tab) {
+  state.ui.battleTab = tab;
+  renderAll();
+}
+window.switchBattleTab = switchBattleTab;
 
 // 獲取某個流派的一階被動技能（tier 1, requiredLevel 0）
 function getTier1PassiveSkillsByFlow(flow) {
@@ -3054,8 +3088,9 @@ function renderBattleDialog() {
     });
     
     // 使用flex布局水平排列
+    const statsGap = getDeviceType() === 'mobile' ? '8px' : '16px';
     dom.battleHeroStats.innerHTML = `
-      <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+      <div style="display: flex; gap: ${statsGap}; flex-wrap: wrap;">
         ${heroBox}
         ${companionHtml}
       </div>
@@ -3395,6 +3430,37 @@ function renderBattleDialog() {
   if (dom.battleLog) {
     renderBattleLog();
   }
+
+  // Mobile: Battle tab bar
+  if (getDeviceType() === 'mobile') {
+    const battleBottomPanel = document.querySelector('.battle-bottom-panel');
+    if (battleBottomPanel) {
+      // Insert tab bar if not already present
+      let tabBar = battleBottomPanel.querySelector('.battle-tab-bar');
+      if (!tabBar) {
+        tabBar = document.createElement('div');
+        tabBar.className = 'battle-tab-bar';
+        battleBottomPanel.insertBefore(tabBar, battleBottomPanel.firstChild);
+      }
+      const activeTab = state.ui.battleTab || 'commands';
+      tabBar.innerHTML = `
+        <button class="battle-tab-btn ${activeTab === 'commands' ? 'active' : ''}" onclick="switchBattleTab('commands')">指令</button>
+        <button class="battle-tab-btn ${activeTab === 'enemies' ? 'active' : ''}" onclick="switchBattleTab('enemies')">敵人</button>
+        <button class="battle-tab-btn ${activeTab === 'log' ? 'active' : ''}" onclick="switchBattleTab('log')">紀錄</button>
+      `;
+      // Toggle visibility
+      if (dom.battleCommands) dom.battleCommands.classList.toggle('hidden-panel', activeTab !== 'commands');
+      if (dom.battleEnemies) dom.battleEnemies.classList.toggle('hidden-panel', activeTab !== 'enemies');
+      if (dom.battleLog) dom.battleLog.classList.toggle('hidden-panel', activeTab !== 'log');
+    }
+  } else {
+    // Desktop: ensure no tab bar and no hidden panels
+    const tabBar = document.querySelector('.battle-tab-bar');
+    if (tabBar) tabBar.remove();
+    if (dom.battleCommands) dom.battleCommands.classList.remove('hidden-panel');
+    if (dom.battleEnemies) dom.battleEnemies.classList.remove('hidden-panel');
+    if (dom.battleLog) dom.battleLog.classList.remove('hidden-panel');
+  }
 }
 
 // 獲取怪物SVG圖案
@@ -3520,12 +3586,14 @@ function renderEnemySprites(battle) {
     // 添加时间戳参数以强制重新加载图片（避免缓存）
     const imagePath = `src/assets/enemy/${enemyId}.png?t=${Date.now()}`;
     
-    // 根據 sizeLevel 計算縮放比例
+    // 根據 sizeLevel 計算縮放比例（響應式基礎尺寸）
     // sizeLevel: 1=100%, 2=120%, 3=140%, 4=160%
     const sizeLevel = enemy.sizeLevel || 3;
     const scaleMap = { 1: 1.0, 2: 1.2, 3: 1.4, 4: 1.6 };
     const scale = scaleMap[sizeLevel] || 1.0;
-    const sizeStyle = `width: ${200 * scale}px; height: ${200 * scale}px;`;
+    const deviceType = getDeviceType();
+    const baseSize = deviceType === 'mobile' ? 100 : (deviceType === 'tablet' ? 160 : 200);
+    const sizeStyle = `width: ${baseSize * scale}px; height: ${baseSize * scale}px;`;
     
     html += `
       <div class="${spriteClass}" 
@@ -3712,7 +3780,7 @@ function renderHeroPanel() {
     const heroStatusSection = document.getElementById('hero-status-section');
     if (heroStatusSection) {
       const skillsHtml = renderSkillsPanel();
-      heroStatusSection.innerHTML = `
+      const innerContent = `
       ${switchButtons}
       <div class="hero-info">
         <div>
@@ -3733,11 +3801,10 @@ function renderHeroPanel() {
         <ul>${attrList}</ul>
         ${currentCompanion.heroType ? (() => {
           const heroTypeId = currentCompanion.heroType;
-          // 進階職業對應的兩種基礎成長類型
           const advancedGrowthMap = {
-            sage: ['mage', 'healer'],         // 賢者：魔法型 + 恢復型
-            paladin: ['defender', 'healer'],  // 聖騎士：防守型 + 恢復型
-            weaponmaster: ['attacker', 'agile'], // 武器大師：攻擊型 + 敏捷型
+            sage: ['mage', 'healer'],
+            paladin: ['defender', 'healer'],
+            weaponmaster: ['attacker', 'agile'],
           };
           let label = '';
           if (advancedGrowthMap[heroTypeId]) {
@@ -3761,7 +3828,21 @@ function renderHeroPanel() {
         ${renderTendencyBars(healTendency, supportTendency, defenseTendency, attackTendency, aoeTendency)}
       </div>
         ${skillsHtml}
-    `;
+      `;
+      if (getDeviceType() === 'mobile') {
+        const isExpanded = state.ui.accordionState.hero;
+        heroStatusSection.innerHTML = `
+          <div class="accordion-header" onclick="toggleAccordion('hero')">
+            <h4>勇者資訊</h4>
+            <span class="accordion-arrow ${isExpanded ? 'expanded' : ''}">▶</span>
+          </div>
+          <div class="accordion-body ${isExpanded ? 'expanded' : ''}">
+            ${innerContent}
+          </div>
+        `;
+      } else {
+        heroStatusSection.innerHTML = innerContent;
+      }
     }
   } else {
     // 顯示英雄信息
@@ -3848,7 +3929,7 @@ function renderHeroPanel() {
     const heroStatusSection = document.getElementById('hero-status-section');
     if (heroStatusSection) {
       const skillsHtml = renderSkillsPanel();
-      heroStatusSection.innerHTML = `
+      const innerContent = `
       ${switchButtons}
       <div class="hero-info">
         <div>
@@ -3893,7 +3974,21 @@ function renderHeroPanel() {
         <p>魔防：${magicDefense}</p>
       </div>
         ${skillsHtml}
-    `;
+      `;
+      if (getDeviceType() === 'mobile') {
+        const isExpanded = state.ui.accordionState.hero;
+        heroStatusSection.innerHTML = `
+          <div class="accordion-header" onclick="toggleAccordion('hero')">
+            <h4>勇者資訊</h4>
+            <span class="accordion-arrow ${isExpanded ? 'expanded' : ''}">▶</span>
+          </div>
+          <div class="accordion-body ${isExpanded ? 'expanded' : ''}">
+            ${innerContent}
+          </div>
+        `;
+      } else {
+        heroStatusSection.innerHTML = innerContent;
+      }
     }
   }
 }
@@ -4160,14 +4255,30 @@ function renderInventoryPanel() {
   }
   
   if (dom.inventoryPanel) {
-    dom.inventoryPanel.innerHTML = `
-      <div class="inventory-panel-header">
-        ${headerHtml}
-      </div>
+    const invInnerContent = `
       <div class="inventory-panel-content">
         ${contentHtml}
       </div>
     `;
+    if (getDeviceType() === 'mobile') {
+      const isExpanded = state.ui.accordionState.inventory;
+      dom.inventoryPanel.innerHTML = `
+        <div class="accordion-header" onclick="toggleAccordion('inventory')">
+          <h4>道具欄 (${items.length}/${maxItems})</h4>
+          <span class="accordion-arrow ${isExpanded ? 'expanded' : ''}">▶</span>
+        </div>
+        <div class="accordion-body ${isExpanded ? 'expanded' : ''}">
+          ${invInnerContent}
+        </div>
+      `;
+    } else {
+      dom.inventoryPanel.innerHTML = `
+        <div class="inventory-panel-header">
+          ${headerHtml}
+        </div>
+        ${invInnerContent}
+      `;
+    }
   }
 }
 
@@ -4835,10 +4946,7 @@ function renderEquipmentPanel() {
   }).join('');
   
   if (dom.equipmentPanel) {
-    dom.equipmentPanel.innerHTML = `
-      <div class="equipment-panel-header">
-      <h4>裝備</h4>
-      </div>
+    const equipInnerContent = `
       <div class="equipment-panel-content">
         <div class="hero-equipment-section">
           <h5 style="margin: 10px 0 5px 0; font-size: 14px;">勇者</h5>
@@ -4852,6 +4960,25 @@ function renderEquipmentPanel() {
         ` : ''}
       </div>
     `;
+    if (getDeviceType() === 'mobile') {
+      const isExpanded = state.ui.accordionState.equipment;
+      dom.equipmentPanel.innerHTML = `
+        <div class="accordion-header" onclick="toggleAccordion('equipment')">
+          <h4>裝備</h4>
+          <span class="accordion-arrow ${isExpanded ? 'expanded' : ''}">▶</span>
+        </div>
+        <div class="accordion-body ${isExpanded ? 'expanded' : ''}">
+          ${equipInnerContent}
+        </div>
+      `;
+    } else {
+      dom.equipmentPanel.innerHTML = `
+        <div class="equipment-panel-header">
+        <h4>裝備</h4>
+        </div>
+        ${equipInnerContent}
+      `;
+    }
     
     // 綁定圣物選擇事件
     const relicSelects = dom.equipmentPanel.querySelectorAll('.relic-select');

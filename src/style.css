@@ -6,6 +6,15 @@
   --accent: #f4b183;
   --text: #f4f4f4;
   --shadow: #0d0f19;
+  /* Responsive variables */
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --font-size-base: 14.4px;
+  --font-size-sm: 10.8px;
+  --font-size-xs: 9.6px;
+  --game-area-height: 70%;
+  --status-panel-height: 30%;
 }
 
 * {
@@ -1665,4 +1674,472 @@ body {
   margin-bottom: 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   padding-bottom: 4px;
+}
+
+/* === Touch-friendly buttons === */
+button {
+  touch-action: manipulation;
+}
+
+/* === Responsive utility classes === */
+.mobile-only { display: none; }
+.desktop-only { display: block; }
+
+/* ============================================
+   RESPONSIVE: Mobile (< 768px)
+   ============================================ */
+@media (max-width: 767px) {
+  :root {
+    --spacing-sm: 4px;
+    --spacing-md: 8px;
+    --spacing-lg: 16px;
+    --font-size-base: 11px;
+    --font-size-sm: 9px;
+    --font-size-xs: 8px;
+    --game-area-height: 55%;
+    --status-panel-height: 45%;
+  }
+
+  body {
+    font-size: 11px;
+  }
+
+  .mobile-only { display: block; }
+  .desktop-only { display: none; }
+
+  /* Phase 2: Dialog & Modal */
+  .dialog-box {
+    min-width: 0;
+    width: calc(100vw - 32px);
+    max-width: none;
+    padding: 16px;
+  }
+
+  .dialog-content {
+    padding: 16px;
+  }
+
+  .dialog-title {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .dialog-description {
+    font-size: 11px;
+    margin-bottom: 12px;
+  }
+
+  .dialog-option {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+  }
+
+  .dialog-option small {
+    font-size: 9px;
+  }
+
+  .modal {
+    width: calc(100vw - 24px);
+    max-width: none;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  .hero-type-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .skill-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .type-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+  }
+
+  .hero-type-card {
+    padding: 12px;
+  }
+
+  .hero-type-card h3 {
+    font-size: 11px;
+  }
+
+  .type-description {
+    font-size: 10px;
+  }
+
+  .type-bonus p {
+    font-size: 9px;
+  }
+
+  .growth-desc {
+    font-size: 9px;
+  }
+
+  .skill-card {
+    padding: 10px;
+  }
+
+  .skill-card h3 {
+    font-size: 11px;
+  }
+
+  .skill-card p {
+    font-size: 9px;
+  }
+
+  .primary-btn,
+  .ghost-btn {
+    min-height: 44px;
+    font-size: 11px;
+  }
+
+  .continue-btn {
+    min-height: 44px;
+    font-size: 11px;
+  }
+
+  .shop-buy-btn {
+    min-height: 44px;
+    font-size: 9px;
+    padding: 10px 12px;
+  }
+
+  .shop-tab {
+    font-size: 9px;
+    padding: 8px 10px;
+    min-height: 44px;
+  }
+
+  .unequip-btn {
+    min-height: 36px;
+    font-size: 8px;
+  }
+
+  .equip-from-inventory-btn {
+    min-height: 36px;
+    font-size: 8px;
+  }
+
+  .use-item-btn,
+  .drop-item-btn {
+    min-height: 36px;
+  }
+
+  .level-up-title {
+    font-size: 14px;
+  }
+
+  .stat-name,
+  .stat-change {
+    font-size: 11px;
+  }
+
+  /* Phase 3: Game area ratio */
+  .background-container,
+  .game-content {
+    height: var(--game-area-height);
+  }
+
+  .status-panel {
+    height: var(--status-panel-height);
+  }
+
+  /* Phase 5: Status panel accordion */
+  .status-panel {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .hero-panel,
+  .equipment-panel,
+  .status-right-panel {
+    grid-column: 1;
+    border-right: none;
+    border-bottom: 2px solid var(--text);
+  }
+
+  .accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 44px;
+    padding: 0 12px;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 2px solid var(--text);
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .accordion-header h4 {
+    margin: 0;
+    font-size: 11px;
+    color: var(--accent);
+    font-family: 'Press Start 2P', monospace;
+  }
+
+  .accordion-arrow {
+    font-size: 12px;
+    transition: transform 0.3s ease;
+    color: var(--text);
+  }
+
+  .accordion-arrow.expanded {
+    transform: rotate(90deg);
+  }
+
+  .accordion-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+
+  .accordion-body.expanded {
+    max-height: 600px;
+    overflow-y: auto;
+  }
+
+  /* Phase 6: Battle UI tabs */
+  .battle-bottom-panel {
+    flex-direction: column;
+    max-height: 40vh;
+    gap: 0;
+  }
+
+  .battle-tab-bar {
+    display: flex;
+    flex-shrink: 0;
+    border-bottom: 2px solid var(--text);
+  }
+
+  .battle-tab-btn {
+    flex: 1;
+    height: 44px;
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    border-right: 1px solid var(--text);
+    color: var(--text);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .battle-tab-btn:last-child {
+    border-right: none;
+  }
+
+  .battle-tab-btn.active {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .battle-commands,
+  .battle-enemies,
+  .battle-log {
+    width: 100%;
+    flex: none;
+  }
+
+  .hidden-panel {
+    display: none !important;
+  }
+
+  .enemy-sprite img {
+    width: 120px;
+    height: 120px;
+  }
+
+  .battle-enemy-sprites {
+    gap: 20px;
+  }
+
+  .battle-hero-stats {
+    max-width: calc(100vw - 16px);
+  }
+
+  .battle-stat-box {
+    min-width: 0;
+    padding: 8px;
+    font-size: 9px;
+  }
+
+  .battle-stat-label {
+    font-size: 10px;
+  }
+
+  .battle-stat-box p {
+    font-size: 9px;
+  }
+
+  .battle-command-btn {
+    min-height: 44px;
+    font-size: 9px;
+    padding: 10px 12px;
+  }
+
+  .battle-log-entry {
+    font-size: 8px;
+  }
+
+  .enemy-info {
+    font-size: 9px;
+    padding: 6px;
+    gap: 8px;
+  }
+
+  .enemy-sprite-name {
+    font-size: 8px;
+  }
+
+  /* Phase 7: Side panels */
+  .field-actions-panel {
+    left: 0;
+    bottom: var(--status-panel-height);
+    top: auto;
+    width: 100%;
+    max-height: 30vh;
+    border: none;
+    border-top: 3px solid var(--text);
+    padding: 8px;
+  }
+
+  .field-action-btn {
+    min-height: 44px;
+  }
+
+  .log-panel {
+    width: 200px;
+    font-size: 8px;
+    padding: 8px;
+  }
+
+  .log-panel h3 {
+    font-size: 10px;
+  }
+
+  .log-panel ul {
+    font-size: 8px;
+  }
+
+  /* Start screen */
+  .start-card {
+    padding: 16px;
+  }
+
+  .start-card h1 {
+    font-size: 18px;
+  }
+
+  /* Character switch */
+  .character-switch-btn {
+    font-size: 9px;
+    padding: 6px 8px;
+  }
+
+  .character-switch-btn.active {
+    font-size: 10px;
+  }
+
+  /* Hero info */
+  .hero-info {
+    flex-direction: column;
+    gap: 8px;
+    font-size: 10px;
+  }
+
+  /* Status tabs */
+  .status-tab {
+    font-size: 9px;
+    padding: 6px 8px;
+  }
+
+  .status-tab-content.active {
+    grid-template-columns: 1fr;
+  }
+
+  /* Equipment panel */
+  .equipment-panel h3 {
+    font-size: 11px;
+  }
+
+  /* Shop */
+  .shop-content {
+    max-height: 50vh;
+  }
+
+  .shop-item-name {
+    font-size: 11px;
+  }
+
+  .shop-tabs {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+/* ============================================
+   RESPONSIVE: Tablet (768px - 1024px)
+   ============================================ */
+@media (min-width: 768px) and (max-width: 1024px) {
+  :root {
+    --font-size-base: 12px;
+  }
+
+  .hero-type-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .skill-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .enemy-sprite img {
+    width: 160px;
+    height: 160px;
+  }
+
+  .dialog-box {
+    min-width: 0;
+    width: calc(100vw - 48px);
+    max-width: 700px;
+  }
+}
+
+/* ============================================
+   RESPONSIVE: Desktop (> 1024px)
+   ============================================ */
+@media (min-width: 1025px) {
+  #app {
+    max-width: 1920px;
+    margin: 0 auto;
+  }
+
+  .battle-bottom-panel {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .status-panel {
+    min-width: 0;
+  }
+
+  /* Accordion not used on desktop */
+  .accordion-header {
+    display: none;
+  }
+
+  .accordion-body {
+    max-height: none !important;
+    overflow: visible;
+  }
 }
