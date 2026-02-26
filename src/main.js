@@ -2834,7 +2834,7 @@ function renderFieldActionsPanel() {
   let heroSkillsHtml = '';
   if (heroUsableSkills.length > 0) {
     heroSkillsHtml = heroUsableSkills.map(skill => {
-      const mpCost = skill.mpCost || 0;
+      const mpCost = getSkillMpCost(skill, hero);
       const canUse = hero.stats.mp >= mpCost;
       return `
         <button class="field-action-btn" data-action="skill" data-skill-id="${skill.id}" data-character="hero" ${!canUse ? 'disabled' : ''}>
@@ -2860,7 +2860,7 @@ function renderFieldActionsPanel() {
     
     const companionName = companion.name || `同伴${index + 1}`;
     const skillsList = companionSkills.map(skill => {
-      const mpCost = skill.mpCost || 0;
+      const mpCost = getSkillMpCost(skill, companion);
       const canUse = companion.stats.mp >= mpCost;
       return `
         <button class="field-action-btn" data-action="skill" data-skill-id="${skill.id}" data-character="companion" data-companion-index="${index}" ${!canUse ? 'disabled' : ''}>
@@ -2988,14 +2988,14 @@ function renderBattleDialog() {
         : getActiveSkills();
       // 過濾掉MP不足的技能
       const skills = allSkills.filter(skill => {
-        const mpCost = skill.mpCost || 0;
+        const mpCost = getSkillMpCost(skill, currentCharacter);
         return currentCharacter.stats.mp >= mpCost;
       });
       dom.battleCommands.innerHTML = `
         <div class="battle-stat-box">
           <p class="battle-stat-label">${isCompanionTurn ? (getActiveCompanion()?.name || '同伴') : '勇者'} 技能</p>
           ${skills.length > 0 ? skills.map(skill => {
-            const mpCost = skill.mpCost || 0;
+            const mpCost = getSkillMpCost(skill, currentCharacter);
             return `
               <button class="battle-command-btn" data-skill="${skill.id}">
                 ${skill.name} ${mpCost > 0 ? `(MP:${mpCost})` : ''}
@@ -3934,7 +3934,7 @@ function renderSkillsPanel() {
   if (activeSkills.length > 0) {
     activeHtml += '<ul class="skill-list">';
     activeSkills.forEach(skill => {
-      const mpCost = skill.mpCost || 0;
+      const mpCost = getSkillMpCost(skill, character);
       const canUse = character.stats.mp >= mpCost;
       // 非戰鬥狀態下，只有回復型技能可以使用
       const isHealSkill = skill.kind === 'heal';
@@ -4233,14 +4233,14 @@ function useSkillInField(skillId, characterType = 'hero', companionIndex = 0) {
   }
   
   // 檢查 MP 消耗
-  const mpCost = skill.mpCost || 0;
+  const mpCost = getSkillMpCost(skill, caster);
   if (caster.stats.mp < mpCost) {
     const casterName = characterType === 'companion' ? caster.name : '你';
     pushLog(`${casterName} MP 不足，無法使用此技能！`);
     renderAll();
     return;
   }
-  
+
   // 如果有同伴，需要選擇目標
   const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
   if (activeCompanions.length > 0) {
@@ -4290,14 +4290,14 @@ function useSkillInFieldDirectly(skillId, characterType, targetType, companionIn
   if (!skill || (skill.kind !== 'heal' && skill.kind !== 'support')) return;
   
   // 檢查 MP 消耗
-  const mpCost = skill.mpCost || 0;
+  const mpCost = getSkillMpCost(skill, caster);
   if (caster.stats.mp < mpCost) {
     pushLog(`${casterName} MP 不足，無法使用此技能！`);
     state.ui.fieldSkillSelection = null;
     renderAll();
     return;
   }
-  
+
   // 確定目標
   let targetCharacter = hero;
   let targetName = '你';
@@ -4435,14 +4435,14 @@ function selectFieldSkillTarget(targetType, companionIndex = 0) {
     }
     
     // 檢查 MP 消耗
-    const mpCost = skill.mpCost || 0;
+    const mpCost = getSkillMpCost(skill, caster);
     if (caster.stats.mp < mpCost) {
       pushLog(`${casterName} MP 不足，無法使用此技能！`);
       state.ui.fieldSkillSelection = null;
       renderAll();
       return;
     }
-    
+
     // 消耗MP
     caster.stats.mp -= mpCost;
     
@@ -5265,7 +5265,7 @@ function renderCommandOptions(battle) {
     const hero = state.hero;
     // 過濾掉MP不足的技能
     const skills = allSkills.filter(skill => {
-      const mpCost = skill.mpCost || 0;
+      const mpCost = getSkillMpCost(skill, hero);
       return hero.stats.mp >= mpCost;
     });
     if (skills.length === 0) {
@@ -5274,7 +5274,7 @@ function renderCommandOptions(battle) {
     const options = skills
       .map(
         (skill) => {
-          const mpCost = skill.mpCost || 0;
+          const mpCost = getSkillMpCost(skill, hero);
           return `
           <button data-skill="${skill.id}">
             <strong>${skill.name}</strong>
@@ -6377,9 +6377,9 @@ function renderFieldSkillTargetSelection(skillSelection) {
     `).join('');
   }
   
-  const mpCost = skill.mpCost || 0;
+  const mpCost = getSkillMpCost(skill, caster);
   const canUse = caster.stats.mp >= mpCost;
-  
+
   // 如果是群體治療技能（AOE + heal），只顯示"我方全體"選項
   const isAoeHeal = skill.aoe && skill.kind === 'heal';
   
@@ -7591,10 +7591,20 @@ function checkAndUseEnhanceSkills() {
 function useAuraSkill(caster, skill, casterName, isHero) {
   const battle = state.ui.battle;
   if (!battle || !caster || !skill || skill.kind !== 'enhance') return;
-  
+
   // 防死護盾不是光環技能，應該通過performSkill處理
   if (skill.deathWard) return;
-  
+
+  // 檢查並扣除 MP（支援百分比消耗）
+  const mpCost = getSkillMpCost(skill, caster);
+  if (mpCost > 0) {
+    if (caster.stats.mp < mpCost) {
+      pushBattleLog(`${casterName} MP 不足（需要 ${mpCost}），無法施放「${skill.name}」。`);
+      return;
+    }
+    caster.stats.mp -= mpCost;
+  }
+
   // 計算光環效果值（根據施法者的體力）
   const totalAttrs = isHero 
     ? getHeroTotalAttributes(caster)
@@ -8260,20 +8270,20 @@ function performSkill(skillId) {
     // 檢查是否為自身buff（劍意）還是光環
     if (skill.selfBuff) {
       // 自身buff技能（劍意）：消耗MP，提升自身能力
-      const mpCost = skill.mpCost || 0;
+      const mpCost = getSkillMpCost(skill, attacker);
       if (attacker.stats.mp < mpCost) {
         pushLog(`${attackerName} MP 不足，無法使用此技能！`);
         renderBattleDialog();
         return;
       }
-      
+
       attacker.stats.mp -= mpCost;
-      
+
       // 應用劍意buff
       const attackBoost = skill.attackBoost || 0;
       const critBoost = skill.critBoost || 0;
       const duration = skill.duration || 3;
-      
+
       if (isHeroTurn) {
         battle.heroBuffs.swordIntent = {
           attackBoost: attackBoost,
@@ -8446,7 +8456,30 @@ function performSkill(skillId) {
           if (enemy.stats.hp <= 0) {
             pushBattleLog(`→ ${enemy.name} 被擊倒！`);
           }
-          
+
+          // AOE技能附帶中毒效果（如疾風斬）
+          if (skill.poisonDuration && enemy.stats.hp > 0) {
+            const totalAttrs = isCompanionTurn ? getCompanionTotalAttributes(attacker) : getHeroTotalAttributes(attacker);
+            const casterAgility = totalAttrs.agility || 0;
+            const poisonDamage = Math.max(1, Math.floor(casterAgility * (skill.poisonRatio || 0.3)));
+
+            if (!battle.enemyDebuffs) battle.enemyDebuffs = {};
+            if (!battle.enemyDebuffs[index]) battle.enemyDebuffs[index] = {};
+
+            const hadPoison = battle.enemyDebuffs[index].poison ? true : false;
+            battle.enemyDebuffs[index].poison = {
+              duration: skill.poisonDuration,
+              damage: poisonDamage,
+              casterAgility: casterAgility
+            };
+
+            if (hadPoison) {
+              pushBattleLog(`→ ${enemy.name}的毒被刷新！持續${skill.poisonDuration}回合，每回合受到 ${poisonDamage} 傷害。`);
+            } else {
+              pushBattleLog(`→ ${enemy.name}中毒了！持續${skill.poisonDuration}回合，每回合受到 ${poisonDamage} 傷害。`);
+            }
+          }
+
           // 應用吸血被動（只有英雄有被動技能）
           if (isHeroTurn && skill.flow === 'sword') {
             const passiveEffects = getSwordPassiveEffects(attacker);
@@ -8794,9 +8827,23 @@ function performSkill(skillId) {
             pushBattleLog(`→ ${target.name}的攻擊力被削弱！將在接下來的${skill.attackDownDuration}回合中，攻擊力減少 ${Math.round(skill.attackDownRatio * 100)}%。`);
           }
         }
+
+        // 淨化斬：攻擊後清除目標所有 debuff
+        if (skill.purgeSlash && battle.enemyDebuffs && battle.enemyDebuffs[targetIndex]) {
+          const debuffs = battle.enemyDebuffs[targetIndex];
+          let clearedNames = [];
+          if (debuffs.poison) { clearedNames.push('中毒'); delete debuffs.poison; }
+          if (debuffs.slow) { clearedNames.push('減速'); delete debuffs.slow; }
+          if (debuffs.defenseDown) { clearedNames.push('破甲'); delete debuffs.defenseDown; }
+          if (debuffs.attackDown) { clearedNames.push('弱化'); delete debuffs.attackDown; }
+          if (clearedNames.length > 0) {
+            const targetName = targetEnemy ? targetEnemy.name : (battle.enemies[targetIndex] ? battle.enemies[targetIndex].name : '敵人');
+            pushBattleLog(`→ ${targetName}的所有負面狀態（${clearedNames.join('、')}）被淨化斬清除！`);
+          }
+        }
       }
     }
-    
+
     // 聖擊：在勇者回合執行後也會回復HP（在executeNextAction中處理）
   } else if (skill.kind === 'enhance') {
     // 增強技能（光環、自身buff或防死護盾）
@@ -8820,9 +8867,9 @@ function performSkill(skillId) {
       return;
     } else if (skill.selfBuff) {
       // 自身buff技能（劍意）：消耗MP，提升自身能力
-      const mpCost = skill.mpCost || 0;
+      const mpCost = getSkillMpCost(skill, attacker);
       attacker.stats.mp -= mpCost;
-      
+
       // 應用劍意buff
       const attackBoost = skill.attackBoost || 0;
       const critBoost = skill.critBoost || 0;
@@ -9824,10 +9871,18 @@ function applyLifesteal(attacker, damage, passiveEffects) {
   pushBattleLog(`${attackerName}嗜血劍術回復了 ${lifestealAmount} HP！`);
 }
 
+// 計算技能實際 MP 消耗（支援固定值 mpCost 和百分比 mpCostPercent）
+function getSkillMpCost(skill, caster) {
+  if (skill.mpCostPercent && caster) {
+    return Math.max(1, Math.ceil(caster.stats.maxMp * skill.mpCostPercent));
+  }
+  return skill.mpCost || 0;
+}
+
 // 劍神之路動態 MP 消耗計算
 // 回傳 { mpCost, tempMpCost }
 function calculateDynamicMpCost(skill, caster) {
-  let mpCost = skill.mpCost || 0;
+  let mpCost = getSkillMpCost(skill, caster);
   let tempMpCost = 0;
   if (skill.dynamicMpCost && skill.dynamicMpCost === true) {
     const maxMp = caster.stats.maxMp;
@@ -9861,7 +9916,7 @@ function calculateAndApplyHpCost(skill, caster, casterName) {
 
 // 防死護盾：對所有友方施加效果
 function applyDeathWardToAllAllies(skill, caster, casterName) {
-  const mpCost = skill.mpCost || 0;
+  const mpCost = getSkillMpCost(skill, caster);
   if (caster.stats.mp < mpCost) {
     pushBattleLog(`${casterName} MP 不足（需要 ${mpCost}，當前 ${caster.stats.mp}），無法施放「${skill.name}」。`);
     return false;
@@ -11686,8 +11741,29 @@ function calculateSkillDamage(skill, attacker, target) {
     // 其他技能類型需要減去防禦
     damage = baseDamage - defense;
   }
+
+  // 淨化斬：根據目標身上的 debuff 數量增加傷害
+  if (skill.purgeSlash && skill.debuffDamageBonus) {
+    const battle = state.ui.battle;
+    if (battle && battle.enemyDebuffs) {
+      const enemyIndex = battle.enemies.indexOf(target);
+      if (enemyIndex >= 0 && battle.enemyDebuffs[enemyIndex]) {
+        const debuffs = battle.enemyDebuffs[enemyIndex];
+        let debuffCount = 0;
+        if (debuffs.poison) debuffCount++;
+        if (debuffs.slow) debuffCount++;
+        if (debuffs.defenseDown) debuffCount++;
+        if (debuffs.attackDown) debuffCount++;
+        if (debuffCount > 0) {
+          const bonus = 1 + debuffCount * skill.debuffDamageBonus;
+          damage = Math.round(damage * bonus);
+        }
+      }
+    }
+  }
+
   damage = Math.max(1, Math.round(damage));
-  
+
   // 劍神降臨：輸出最終傷害日誌
   if (skill.dynamicMpCost && skill.dynamicMpCost === true && skill.weaponmasterPath === 'sword_god') {
     console.log(`[劍神降臨] 基礎傷害: ${baseDamage}, 防守值: ${defense}, 最終傷害: ${damage}`);
@@ -12873,8 +12949,8 @@ function determineCompanionAction(companion) {
   // 獲取所有可用技能
   const availableSkills = companion.skills
     .map(id => SKILL_LOOKUP.get(id))
-    .filter(skill => skill && skill.kind !== 'passive' && (skill.mpCost || 0) <= companion.stats.mp && isSkillEnabled(skill.id, companion));
-  
+    .filter(skill => skill && skill.kind !== 'passive' && getSkillMpCost(skill, companion) <= companion.stats.mp && isSkillEnabled(skill.id, companion));
+
   // 檢查是否需要使用防守（根據個性）
   if (aiBehavior.guardChance && aiBehavior.guardChance > 0) {
     const guardRoll = Math.random();
@@ -13430,7 +13506,7 @@ function executeCompanionAction(companion, action, resolve) {
     const skill = SKILL_LOOKUP.get(action.skillId);
     if (skill) {
       // 檢查MP是否足夠
-      const mpCost = skill.mpCost || 0;
+      const mpCost = getSkillMpCost(skill, companion);
       if (companion.stats.mp < mpCost) {
         pushBattleLog(`${companion.name}MP不足，無法施放「${skill.name}」。`);
         // MP不足時也要resolve
@@ -13454,7 +13530,7 @@ function executeCompanionAction(companion, action, resolve) {
           // 檢查是否為自身buff（劍意）還是光環
           if (skill.selfBuff) {
             // 劍意技能：對自己使用
-            const mpCost = skill.mpCost || 0;
+            const mpCost = getSkillMpCost(skill, companion);
             if (companion.stats.mp < mpCost) {
               pushBattleLog(`${companion.name} MP不足，無法使用「${skill.name}」。`);
               setTimeout(() => {
@@ -13813,13 +13889,13 @@ function performSkillDirectly(skillId) {
     return;
   }
   
-  // 檢查 MP 消耗（光環技能不耗MP）
-  const mpCost = skill.mpCost || 0;
+  // 檢查 MP 消耗（光環技能在 useAuraSkill 中處理）
+  const mpCost = getSkillMpCost(skill, hero);
   if (skill.kind !== 'enhance' && hero.stats.mp < mpCost) {
     pushBattleLog(`勇者 MP 不足，無法使用「${skill.name}」！`);
     return;
   }
-  
+
   // 增強技能（光環、自身buff或防死護盾）處理
   if (skill.kind === 'enhance') {
     // 檢查是否為防死護盾技能（通過deathWard屬性或技能ID）
@@ -13828,7 +13904,7 @@ function performSkillDirectly(skillId) {
       applyDeathWardToAllAllies(skill, hero, '勇者');
       return;
     }
-    
+
     // 檢查是否為自身buff（劍意）還是光環
     if (skill.selfBuff) {
       // 自身buff技能（劍意）：消耗MP，提升自身能力
@@ -17008,8 +17084,8 @@ function companionAct() {
   // 獲取所有可用技能（排除被動技能，且MP足夠，且技能已啟用）
   const availableSkills = companion.skills
     .map(id => SKILL_LOOKUP.get(id))
-    .filter(skill => skill && skill.kind !== 'passive' && (skill.mpCost || 0) <= companion.stats.mp && isSkillEnabled(skill.id, companion));
-  
+    .filter(skill => skill && skill.kind !== 'passive' && getSkillMpCost(skill, companion) <= companion.stats.mp && isSkillEnabled(skill.id, companion));
+
   if (availableSkills.length === 0 || companion.stats.mp <= 0) {
     // 沒有可用技能或MP不足，使用普通攻擊
     performCompanionBasicAttack(companion, battle);
@@ -17201,7 +17277,7 @@ function performCompanionBasicAttack(companion, battle) {
 
 // 同伴使用技能
 function performCompanionSkill(companion, skill, battle) {
-  const mpCost = skill.mpCost || 0;
+  const mpCost = getSkillMpCost(skill, companion);
   companion.stats.mp = Math.max(0, companion.stats.mp - mpCost);
   
   const aliveEnemies = battle.enemies.filter(e => e.stats.hp > 0);
