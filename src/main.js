@@ -18,6 +18,7 @@ const {
   EQUIPMENT,
   EQUIPMENT_LOOKUP,
   GAME_CONFIG,
+  COMPANION_SPECIALIZATIONS,
 } = window.GameData;
 
 console.log('[MAIN.JS] 數據解構完成');
@@ -816,6 +817,28 @@ function getCompanionTotalAttributes(companion) {
     attrs.magic = (attrs.magic || 0) + heroBloodEffects.magicBonus;
   }
   
+  // 應用流派分歧被動：屬性加成（defenseBonus, vitalityBonus 等）
+  const specPassiveEffects = getSpecPassiveEffects(companion);
+  if (specPassiveEffects.vitalityBonus > 0) {
+    attrs.vitality = (attrs.vitality || 0) + specPassiveEffects.vitalityBonus;
+  }
+  // 戰僧之力：體力百分比加成
+  if (specPassiveEffects.vitalityPercentBonus > 0) {
+    attrs.vitality = Math.floor((attrs.vitality || 0) * (1 + specPassiveEffects.vitalityPercentBonus));
+  }
+  // 注意：spec passive 的 defenseBonus（如狂戰之血 -10）
+  // 直接從技能掃描，因為 getDefenderPassiveEffects 只掃描 defender flow
+  companion.skills.forEach(skillId => {
+    const sk = SKILL_LOOKUP.get(skillId);
+    if (sk && sk.kind === 'passive' && sk.isSpecPassive && sk.defenseBonus !== undefined) {
+      attrs.defense = (attrs.defense || 0) + sk.defenseBonus;
+    }
+  });
+  // 魔力護體：防禦百分比加成
+  if (specPassiveEffects.defensePercentBonus > 0) {
+    attrs.defense = Math.floor((attrs.defense || 0) * (1 + specPassiveEffects.defensePercentBonus));
+  }
+
   // 應用光環效果（攻擊力和防禦力加成）
   const auraAttackBonus = getAuraAttributeBonus('attack');
   if (auraAttackBonus > 0) {
@@ -825,7 +848,7 @@ function getCompanionTotalAttributes(companion) {
   if (auraDefenseBonus > 0) {
     attrs.defense = (attrs.defense || 0) + auraDefenseBonus;
   }
-  
+
   // 應用友方debuff（敵人對友方施加的debuff）
   const battle = state.ui.battle;
   if (battle && battle.friendlyDebuffs && battle.friendlyDebuffs.companions) {
@@ -909,6 +932,8 @@ function getAuraAttributeBonus(attributeType) {
   if (aura.type === 'attack' && attributeType === 'attack') {
     return aura.value;
   } else if (aura.type === 'defense' && attributeType === 'defense') {
+    return aura.value;
+  } else if (aura.type === 'attackDefense' && (attributeType === 'attack' || attributeType === 'defense')) {
     return aura.value;
   }
   return 0;
@@ -1241,8 +1266,8 @@ function bindEvents() {
                 endHeroTurn();
                 return;
               }
-            } else if (skill.kind === 'attack') {
-              // 全體攻擊技能：顯示確認菜單
+            } else if (skill.kind === 'attack' || skill.kind === 'debuff') {
+              // 全體攻擊/debuff技能：顯示確認菜單
               battle.menu = 'select-aoe-attack';
             } else {
               // 其他類型的AOE技能直接加入队列
@@ -2628,6 +2653,8 @@ function getCharacterBuffs(character, isHero) {
       buffs.push({ type: 'buff', name: `攻擊光環 +${aura.value}`, color: '#4FC3F7' });
     } else if (aura.type === 'defense') {
       buffs.push({ type: 'buff', name: `防禦光環 +${aura.value}`, color: '#4FC3F7' });
+    } else if (aura.type === 'attackDefense') {
+      buffs.push({ type: 'buff', name: `聖光光環 攻防+${aura.value}`, color: '#4FC3F7' });
     } else if (aura.type === 'hpRegen') {
       buffs.push({ type: 'buff', name: `生命光環 +${aura.value}/回合`, color: '#4FC3F7' });
     } else if (aura.type === 'mpRegen') {
@@ -2669,6 +2696,18 @@ function getCharacterBuffs(character, isHero) {
     if (companionIndex >= 0 && battle.companionBuffs[companionIndex] && battle.companionBuffs[companionIndex].swordIntent) {
       const swordIntent = battle.companionBuffs[companionIndex].swordIntent;
       buffs.push({ type: 'buff', name: `劍意 ${swordIntent.duration}回合 (攻+${Math.round(swordIntent.attackBoost * 100)}% 暴+${swordIntent.critBoost}%)`, color: '#4FC3F7' });
+    }
+  }
+
+  // 魔法反彈buff
+  if (isHero && battle.heroBuffs && battle.heroBuffs.magicReflect) {
+    const mr = battle.heroBuffs.magicReflect;
+    buffs.push({ type: 'buff', name: `魔法反彈 ${mr.duration}回合 (${Math.round(mr.reflectRatio * 100)}%)`, color: '#CE93D8' });
+  } else if (!isHero && battle.companionBuffs) {
+    const companionIndex = state.companions ? state.companions.indexOf(character) : -1;
+    if (companionIndex >= 0 && battle.companionBuffs[companionIndex] && battle.companionBuffs[companionIndex].magicReflect) {
+      const mr = battle.companionBuffs[companionIndex].magicReflect;
+      buffs.push({ type: 'buff', name: `魔法反彈 ${mr.duration}回合 (${Math.round(mr.reflectRatio * 100)}%)`, color: '#CE93D8' });
     }
   }
 
@@ -4331,7 +4370,7 @@ function useSkillInFieldDirectly(skillId, characterType, targetType, companionIn
       ? getHeroTotalAttributes(caster)
       : getCompanionTotalAttributes(caster);
     const recovery = totalAttrs.recovery;
-    const shieldAmount = skill.power + Math.floor(recovery / 2);
+    const shieldAmount = skill.shieldMultiplier ? Math.floor(skill.mpCost * skill.shieldMultiplier) : skill.power + Math.floor(recovery / 2);
     
     if (skill.aoe) {
       // 全體護盾
@@ -6080,7 +6119,31 @@ function renderCompanionSkillSelectionStep(compUpgrade, companion) {
   if (!currentSelection || currentSelection.selected) {
     return '';
   }
-  
+
+  // 流派分歧 UI
+  if (currentSelection.type === 'specialization') {
+    const cards = currentSelection.options.map(spec => {
+      const passiveSkill = SKILL_LOOKUP.get(spec.passiveId);
+      const activeChain = SKILL_CHAINS.find(c => c.id === spec.activeChainId);
+      const tier1 = activeChain ? activeChain.steps[0] : null;
+      return `
+        <button class="skill-card" data-action="pick-companion-skill" data-skill="${spec.id}">
+          <h3>${spec.name}</h3>
+          <p>${spec.description}</p>
+          <hr style="border-color:#555; margin:8px 0;">
+          <p style="color:#d4a5f5;">【被動】${passiveSkill ? passiveSkill.name : ''}</p>
+          <p style="font-size:0.85em;">${passiveSkill ? passiveSkill.description : ''}</p>
+          <p style="color:#9fc5e8;">【主動】${tier1 ? tier1.name : ''}（MP ${tier1 ? tier1.mpCost : '?'}）</p>
+          <p style="font-size:0.85em;">${tier1 ? tier1.description : ''}</p>
+          <p style="font-size:0.8em; color:#aaa;">Lv25 自動升階 → Lv35 再升階</p>
+        </button>`;
+    }).join('');
+    return `
+      <h2>${companion.name} Lv15 流派覺醒</h2>
+      <p class="level-up-title">選擇一條專精道路（不可更改）</p>
+      <div class="skill-grid">${cards}</div>`;
+  }
+
   const skillOptions = currentSelection.options;
   const skillTypeLabel = currentSelection.type === 'other-class' ? '其他職業被動技能' : '本職業技能';
   
@@ -6884,29 +6947,60 @@ function confirmCompanionSkillSelection(skillId) {
   
   const currentSelection = compUpgrade.skillSelections[compUpgrade.currentSkillSelectionIndex];
   if (!currentSelection || currentSelection.selected) return;
-  
+
+  // 流派分歧選擇
+  if (currentSelection.type === 'specialization') {
+    const spec = currentSelection.options.find(s => s.id === skillId);
+    if (!spec) return;
+
+    companion.specialization = spec.id;
+
+    // 學被動
+    const passiveSkill = SKILL_LOOKUP.get(spec.passiveId);
+    if (passiveSkill) learnCompanionSkill(companion, passiveSkill);
+
+    // 學主動 tier 1
+    const activeChain = SKILL_CHAINS.find(c => c.id === spec.activeChainId);
+    if (activeChain && activeChain.steps[0]) {
+      const tier1 = { ...activeChain.steps[0], flow: activeChain.flow, chainId: activeChain.id, aoe: activeChain.aoe || false };
+      learnCompanionSkill(companion, tier1);
+    }
+
+    currentSelection.selected = true;
+    currentSelection.selectedSkillId = spec.id;
+    pushLog(`${companion.name} 覺醒為「${spec.name}」！`);
+
+    compUpgrade.currentSkillSelectionIndex += 1;
+    if (compUpgrade.currentSkillSelectionIndex >= compUpgrade.skillSelections.length) {
+      processNextCompanionUpgrade(modalState);
+      return;
+    }
+    renderAll();
+    return;
+  }
+
   // 找到選中的技能
   const selectedSkill = currentSelection.options.find(s => s.id === skillId);
   if (!selectedSkill) return;
-  
+
   // 學習技能
   learnCompanionSkill(companion, selectedSkill);
-  
+
   // 標記為已選擇
   currentSelection.selected = true;
   currentSelection.selectedSkillId = skillId;
-  
+
   pushLog(`${companion.name} Lv ${currentSelection.level}：習得「${selectedSkill.name}」！`);
-  
+
   // 檢查是否還有未選擇的技能
   compUpgrade.currentSkillSelectionIndex += 1;
-  
+
   if (compUpgrade.currentSkillSelectionIndex >= compUpgrade.skillSelections.length) {
     // 所有技能都選擇完畢，處理下一個伙伴或結束
     processNextCompanionUpgrade(modalState);
     return;
   }
-  
+
   renderAll();
 }
 
@@ -7332,7 +7426,7 @@ function learnCompanionSkill(companion, skill) {
     const newHeroBloodEffects = getHeroBloodPassiveEffects(companion);
     const newMpBonus = newHeroBloodEffects.mpBonus || 0;
     const mpGain = newMpBonus - oldHeroBloodMpBonus;
-    
+
     if (mpGain !== 0) {
       const oldMaxMp = companion.stats.maxMp;
       companion.stats.maxMp = Math.ceil(companion.stats.maxMp + mpGain);
@@ -7345,6 +7439,13 @@ function learnCompanionSkill(companion, skill) {
         companion.stats.mp = companion.stats.maxMp;
       }
     }
+  }
+
+  // 流派分歧被動：hpPercentBonus（如魔力護體 +40% maxHP）立即加到maxHp
+  if (skill.kind === 'passive' && skill.isSpecPassive && skill.hpPercentBonus && skill.hpPercentBonus > 0) {
+    const hpGain = Math.ceil(companion.stats.maxHp * skill.hpPercentBonus);
+    companion.stats.maxHp += hpGain;
+    companion.stats.hp = Math.min(companion.stats.maxHp, companion.stats.hp + hpGain);
   }
 }
 
@@ -7487,7 +7588,7 @@ function startBattle(option, multiplier = 1) {
     selectedEnemyIndex: null,
     turn: 'hero',
     menu: 'root',
-    heroBuffs: { guard: 0, swordIntent: null, deathWard: false, healingEcho: 0 }, // swordIntent: { attackBoost, critBoost, duration }, deathWard: 防死護盾, healingEcho: 緩慢恢復值
+    heroBuffs: { guard: 0, swordIntent: null, deathWard: false, healingEcho: 0, magicReflect: null }, // swordIntent: { attackBoost, critBoost, duration }, deathWard: 防死護盾, healingEcho: 緩慢恢復值, magicReflect: { reflectRatio, duration }
     companionBuffs: {}, // { companionIndex: { guard: 0, swordIntent: null, deathWard: false, healingEcho: 0 } }
     actionQueue: [], // 行動隊列（按敏捷排序）
     heroAction: null, // 勇者選擇的行動（待執行）
@@ -7523,6 +7624,14 @@ function startBattle(option, multiplier = 1) {
       }
       state.ui.battle.companionBuffs[index].ignoreDefense = true;
       pushBattleLog(`${companion.name}破甲之刃：物理攻擊無視敵方防禦！`);
+    }
+    // 劍意凝聚被動：初始化回合攻擊累加計數器（第一回合即生效）
+    const specEffects = getSpecPassiveEffects(companion);
+    if (specEffects.turnAttackStackRate > 0) {
+      if (!state.ui.battle.companionBuffs[index]) {
+        state.ui.battle.companionBuffs[index] = {};
+      }
+      state.ui.battle.companionBuffs[index].turnAttackStack = specEffects.turnAttackStackRate;
     }
   });
   
@@ -7601,8 +7710,12 @@ function useAuraSkill(caster, skill, casterName, isHero) {
   // 防死護盾不是光環技能，應該通過performSkill處理
   if (skill.deathWard) return;
 
+  // 光環大師被動：光環免費施放
+  const specEffects = getSpecPassiveEffects(caster);
+  const auraFree = specEffects.auraFreeCast;
+
   // 檢查並扣除 MP（支援百分比消耗）
-  const mpCost = getSkillMpCost(skill, caster);
+  const mpCost = auraFree ? 0 : getSkillMpCost(skill, caster);
   if (mpCost > 0) {
     if (caster.stats.mp < mpCost) {
       pushBattleLog(`${casterName} MP 不足（需要 ${mpCost}），無法施放「${skill.name}」。`);
@@ -7612,28 +7725,37 @@ function useAuraSkill(caster, skill, casterName, isHero) {
   }
 
   // 計算光環效果值（根據施法者的體力）
-  const totalAttrs = isHero 
+  const totalAttrs = isHero
     ? getHeroTotalAttributes(caster)
     : getCompanionTotalAttributes(caster);
   const vitality = totalAttrs.vitality;
-  
+
   let auraValue = 0;
   const auraType = skill.auraType;
-  
-  if (auraType === 'attack' || auraType === 'defense' || auraType === 'hpRegen') {
+
+  if (auraType === 'attack' || auraType === 'defense' || auraType === 'hpRegen' || auraType === 'attackDefense') {
     auraValue = Math.floor(vitality / 10);
   } else if (auraType === 'mpRegen') {
     auraValue = Math.floor(vitality / 20);
   }
-  
-  
+
+  // 光環大師被動：光環效果值倍率加成
+  if (specEffects.auraValueMultiplier > 0) {
+    auraValue = Math.floor(auraValue * specEffects.auraValueMultiplier);
+  }
+
+  // 聖光光環：加成減半（同時提供攻防，但每項只有一半效果）
+  if (skill.auraHalved) {
+    auraValue = Math.floor(auraValue * 0.5);
+  }
+
   // 如果已經有光環，替換掉前一個
   if (battle.aura) {
     const oldAuraType = battle.aura.type;
     const oldAuraName = getAuraName(oldAuraType);
     pushBattleLog(`「${oldAuraName}」被「${skill.name}」取代。`);
   }
-  
+
   // 設置新光環
   battle.aura = {
     type: auraType,
@@ -7642,7 +7764,7 @@ function useAuraSkill(caster, skill, casterName, isHero) {
     value: auraValue,
     skillName: skill.name,
   };
-  
+
   const auraName = getAuraName(auraType);
   pushBattleLog(`${casterName}施放「${skill.name}」！`);
   pushBattleLog(`→ 全體獲得${auraName}效果（${auraValue}點，持續${battle.aura.duration}回合）。`);
@@ -7658,6 +7780,7 @@ function getAuraName(auraType) {
     'defense': '防禦光環',
     'hpRegen': '生命光環',
     'mpRegen': '魔力光環',
+    'attackDefense': '聖光光環',
   };
   return names[auraType] || '光環效果';
 }
@@ -7713,6 +7836,8 @@ function applyAuraEffects() {
   } else if (aura.type === 'defense') {
     // 防禦力提升：在計算傷害時應用（通過臨時屬性加成）
     // 所有友方（勇者和同伴）都會獲得防禦力加成
+  } else if (aura.type === 'attackDefense') {
+    // 聖光光環：攻擊+防禦同時提升，在計算傷害時通過getAuraAttributeBonus應用
   } else if (aura.type === 'hpRegen') {
     // 每回合HP恢復
     const allCharacters = [];
@@ -8409,19 +8534,21 @@ function performSkill(skillId) {
       attacker.stats.mp -= actualMpCost;
     }
     
-    // 處理捨身斬技能：扣HP並記錄扣掉的HP值（只有英雄能使用捨身斬）
+    // 處理HP消耗技能（捨身斬用maxHp，狂暴一擊用當前HP）
     let hpCostAmount = 0;
-    if (skill.hpCostPercent && skill.hpCostPercent > 0 && isHeroTurn) {
-      const maxHp = attacker.stats.maxHp;
+    if (skill.hpCostPercent && skill.hpCostPercent > 0) {
       const currentHp = attacker.stats.hp;
-      // 基於最大HP的比例計算，但確保至少扣1，且不會讓HP降到0以下（最多減到HP=1）
-      hpCostAmount = Math.max(1, Math.floor(maxHp * skill.hpCostPercent));
+      // 判斷是否為專精技能（狂暴一擊）：基於當前HP
+      const isSpecSkill = skill.id && skill.id.startsWith('spec_');
+      const hpBase = isSpecSkill ? currentHp : attacker.stats.maxHp;
+      hpCostAmount = Math.max(1, Math.floor(hpBase * skill.hpCostPercent));
       // 確保扣除後HP不會降到0以下（最多減到HP=1）
       hpCostAmount = Math.min(hpCostAmount, currentHp - 1);
       attacker.stats.hp = Math.max(1, attacker.stats.hp - hpCostAmount);
-      battle.tempHpCost = hpCostAmount; // 存儲到battle對象中，供calculateSkillDamage使用
+      battle.tempHpCost = hpCostAmount;
+      const casterLabel = isHeroTurn ? '勇者' : attacker.name;
       if (hpCostAmount > 0) {
-        pushLog(`捨身斬消耗了 ${hpCostAmount} HP！`);
+        pushBattleLog(`${casterLabel}消耗了 ${hpCostAmount} HP！`);
       }
     } else {
       battle.tempHpCost = 0; // 清除臨時值
@@ -8467,7 +8594,12 @@ function performSkill(skillId) {
           if (skill.poisonDuration && enemy.stats.hp > 0) {
             const totalAttrs = isCompanionTurn ? getCompanionTotalAttributes(attacker) : getHeroTotalAttributes(attacker);
             const casterAgility = totalAttrs.agility || 0;
-            const poisonDamage = Math.max(1, Math.floor(casterAgility * (skill.poisonRatio || 0.3)));
+            let poisonDamage = Math.max(1, Math.floor(casterAgility * (skill.poisonRatio || 0.3)));
+            // 幻影毒術被動：中毒傷害加成
+            const specPoisonEffects = getSpecPassiveEffects(attacker);
+            if (specPoisonEffects.poisonDamageBoost > 0) {
+              poisonDamage = Math.round(poisonDamage * (1 + specPoisonEffects.poisonDamageBoost));
+            }
 
             if (!battle.enemyDebuffs) battle.enemyDebuffs = {};
             if (!battle.enemyDebuffs[index]) battle.enemyDebuffs[index] = {};
@@ -9134,42 +9266,55 @@ function performSkill(skillId) {
     if (skill.aoe) {
       attacker.stats.mp -= mpCost;
       pushBattleLog(`${attackerName}施放「${skill.name}」！`);
-      
-      // 計算護盾值
-      const isHero = attacker === state.hero;
-      const totalAttrs = isHero 
-        ? getHeroTotalAttributes(attacker)
-        : getCompanionTotalAttributes(attacker);
-      const recovery = totalAttrs.recovery;
-      const shieldAmount = skill.power + Math.floor(recovery / 2);
-      
-      // 給自己添加護盾（如果還活著）
-      if (attacker.stats.hp > 0) {
-        attacker.stats.shield = (attacker.stats.shield || 0) + shieldAmount;
-        const selfTargetName = isCompanionTurn ? attacker.name : '自己';
-        pushBattleLog(`→ 對${selfTargetName}施加 ${shieldAmount} 護盾！`);
-      }
-      
-      // 給勇者添加護盾（如果是同伴施放，且勇者還活著）
-      if (isCompanionTurn && state.hero && state.hero.stats.hp > 0) {
-        state.hero.stats.shield = (state.hero.stats.shield || 0) + shieldAmount;
-        pushBattleLog(`→ 對勇者施加 ${shieldAmount} 護盾！`);
-      }
-      
-      // 給所有同伴添加護盾（如果是勇者施放）
-      if (isHeroTurn) {
+
+      if (skill.damageReduction !== undefined) {
+        // 鐵壁守護：全隊傷害減免
+        const dr = skill.damageReduction;
+        battle.heroBuffs.guard = Math.max(battle.heroBuffs.guard, dr);
+        pushBattleLog(`→ 勇者獲得傷害減免 ${Math.round(dr * 100)}%！`);
+        if (!battle.companionBuffs) battle.companionBuffs = {};
+        battle.companionBuffs.guard = Math.max(battle.companionBuffs.guard || 0, dr);
         const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
-        activeCompanions.forEach(companion => {
-          companion.stats.shield = (companion.stats.shield || 0) + shieldAmount;
-          pushBattleLog(`→ 對${companion.name}施加 ${shieldAmount} 護盾！`);
+        activeCompanions.forEach(comp => {
+          pushBattleLog(`→ ${comp.name}獲得傷害減免 ${Math.round(dr * 100)}%！`);
         });
       } else {
-        // 如果是同伴施放，給其他同伴添加護盾
-        const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0 && c !== attacker);
-        activeCompanions.forEach(companion => {
-          companion.stats.shield = (companion.stats.shield || 0) + shieldAmount;
-          pushBattleLog(`→ 對${companion.name}施加 ${shieldAmount} 護盾！`);
-        });
+        // 護盾類全體輔助技能
+        const isHero = attacker === state.hero;
+        const totalAttrs = isHero
+          ? getHeroTotalAttributes(attacker)
+          : getCompanionTotalAttributes(attacker);
+        const recovery = totalAttrs.recovery;
+        const shieldAmount = skill.shieldMultiplier ? Math.floor(skill.mpCost * skill.shieldMultiplier) : skill.power + Math.floor(recovery / 2);
+
+        // 給自己添加護盾（如果還活著）
+        if (attacker.stats.hp > 0) {
+          attacker.stats.shield = (attacker.stats.shield || 0) + shieldAmount;
+          const selfTargetName = isCompanionTurn ? attacker.name : '自己';
+          pushBattleLog(`→ 對${selfTargetName}施加 ${shieldAmount} 護盾！`);
+        }
+
+        // 給勇者添加護盾（如果是同伴施放，且勇者還活著）
+        if (isCompanionTurn && state.hero && state.hero.stats.hp > 0) {
+          state.hero.stats.shield = (state.hero.stats.shield || 0) + shieldAmount;
+          pushBattleLog(`→ 對勇者施加 ${shieldAmount} 護盾！`);
+        }
+
+        // 給所有同伴添加護盾（如果是勇者施放）
+        if (isHeroTurn) {
+          const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
+          activeCompanions.forEach(companion => {
+            companion.stats.shield = (companion.stats.shield || 0) + shieldAmount;
+            pushBattleLog(`→ 對${companion.name}施加 ${shieldAmount} 護盾！`);
+          });
+        } else {
+          // 如果是同伴施放，給其他同伴添加護盾
+          const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0 && c !== attacker);
+          activeCompanions.forEach(companion => {
+            companion.stats.shield = (companion.stats.shield || 0) + shieldAmount;
+            pushBattleLog(`→ 對${companion.name}施加 ${shieldAmount} 護盾！`);
+          });
+        }
       }
     } else {
       // 單體輔助技能
@@ -9203,20 +9348,39 @@ function performSkill(skillId) {
       }
       
       attacker.stats.mp -= mpCost;
-      
-      // 計算護盾值
-      const isHero = attacker === state.hero;
-      const totalAttrs = isHero 
-        ? getHeroTotalAttributes(attacker)
-        : getCompanionTotalAttributes(attacker);
-      const recovery = totalAttrs.recovery;
-      const shieldAmount = skill.power + Math.floor(recovery / 2);
-      
-      // 給目標添加護盾
-      targetCharacter.stats.shield = (targetCharacter.stats.shield || 0) + shieldAmount;
-      pushBattleLog(`${attackerName}施放「${skill.name}」，對${targetName}施加 ${shieldAmount} 護盾！`);
+
+      // 檢查是否為魔法反彈技能
+      if (skill.reflectRatio && skill.reflectDuration) {
+        // 魔法反彈buff
+        const reflectBuff = { reflectRatio: skill.reflectRatio, duration: skill.reflectDuration };
+        const isTargetHero = targetCharacter === state.hero;
+        if (isTargetHero) {
+          battle.heroBuffs.magicReflect = reflectBuff;
+        } else {
+          const companionIndex = state.companions ? state.companions.indexOf(targetCharacter) : -1;
+          if (companionIndex >= 0) {
+            if (!battle.companionBuffs[companionIndex]) {
+              battle.companionBuffs[companionIndex] = {};
+            }
+            battle.companionBuffs[companionIndex].magicReflect = reflectBuff;
+          }
+        }
+        pushBattleLog(`${attackerName}施放「${skill.name}」，對${targetName}施加魔法反彈（${skill.reflectDuration}回合）！`);
+      } else {
+        // 計算護盾值
+        const isHero = attacker === state.hero;
+        const totalAttrs = isHero
+          ? getHeroTotalAttributes(attacker)
+          : getCompanionTotalAttributes(attacker);
+        const recovery = totalAttrs.recovery;
+        const shieldAmount = skill.shieldMultiplier ? Math.floor(skill.mpCost * skill.shieldMultiplier) : skill.power + Math.floor(recovery / 2);
+
+        // 給目標添加護盾
+        targetCharacter.stats.shield = (targetCharacter.stats.shield || 0) + shieldAmount;
+        pushBattleLog(`${attackerName}施放「${skill.name}」，對${targetName}施加 ${shieldAmount} 護盾！`);
+      }
     }
-    
+
     renderBattleDialog();
     setTimeout(() => {
       if (isHeroTurn) {
@@ -9250,6 +9414,8 @@ function performSkill(skillId) {
       totalHeal += actualHealed;
       // 觸發神聖護盾效果（如果是神聖護盾技能）
       applySacredShieldEffect(skill, attacker, attacker);
+      // 觸發聖光洗禮護盾效果
+      applyHealShieldPower(skill, attacker);
       // 觸發防死護盾效果（如果是防死護盾技能）
       applyDeathWardEffect(skill, attacker, attacker);
       // 觸發神聖回響效果
@@ -9270,6 +9436,8 @@ function performSkill(skillId) {
         totalHeal += actualHealed;
         // 觸發神聖護盾效果（如果是神聖護盾技能）
         applySacredShieldEffect(skill, attacker, state.hero);
+        // 觸發聖光洗禮護盾效果
+        applyHealShieldPower(skill, state.hero);
         // 觸發防死護盾效果（如果是防死護盾技能）
         applyDeathWardEffect(skill, attacker, state.hero);
         // 觸發神聖回響效果
@@ -9290,6 +9458,8 @@ function performSkill(skillId) {
           totalHeal += actualHealed;
           // 觸發神聖護盾效果（如果是神聖護盾技能）
           applySacredShieldEffect(skill, attacker, companion);
+          // 觸發聖光洗禮護盾效果
+          applyHealShieldPower(skill, companion);
           // 觸發防死護盾效果（如果是防死護盾技能）
           applyDeathWardEffect(skill, attacker, companion);
           // 觸發神聖回響效果
@@ -9985,12 +10155,38 @@ function applyDeathWardToAllAllies(skill, caster, casterName) {
 // 返回：實際造成的傷害值
 function applyDamageToEnemyUnified(enemy, damage, attacker = null) {
   if (!enemy || damage <= 0) return 0;
-  
+
   // 應用傷害
   const oldHp = enemy.stats.hp;
   enemy.stats.hp = Math.max(0, enemy.stats.hp - damage);
   const actualDamage = oldHp - enemy.stats.hp;
-  
+
+  // 戰僧之力：攻擊時恢復HP最低隊友（傷害的50%）
+  if (attacker && actualDamage > 0 && state.companions && state.companions.includes(attacker)) {
+    const specEffects = getSpecPassiveEffects(attacker);
+    if (specEffects.healOnHitRatio > 0) {
+      const healAmount = Math.floor(actualDamage * specEffects.healOnHitRatio);
+      if (healAmount > 0) {
+        // 找HP百分比最低的存活隊友（包含勇者和所有同伴）
+        const allAllies = [state.hero, ...(state.companions || [])].filter(c => c && c.stats && c.stats.hp > 0);
+        if (allAllies.length > 0) {
+          const lowestHpAlly = allAllies.reduce((lowest, ally) => {
+            const lowestRatio = lowest.stats.hp / lowest.stats.maxHp;
+            const allyRatio = ally.stats.hp / ally.stats.maxHp;
+            return allyRatio < lowestRatio ? ally : lowest;
+          });
+          const allyOldHp = lowestHpAlly.stats.hp;
+          lowestHpAlly.stats.hp = Math.min(lowestHpAlly.stats.maxHp, lowestHpAlly.stats.hp + healAmount);
+          const actualHeal = lowestHpAlly.stats.hp - allyOldHp;
+          if (actualHeal > 0) {
+            const targetName = lowestHpAlly === state.hero ? '勇者' : lowestHpAlly.name;
+            pushBattleLog(`→ ${attacker.name}的戰僧之力恢復${targetName} ${actualHeal} HP！`);
+          }
+        }
+      }
+    }
+  }
+
   // 檢查是否需要形態切換（多形態boss）
   if (enemy.forms && enemy.forms.length > 1 && !enemy.hasTransformed && enemy.transformHpThreshold) {
     const hpRatio = enemy.stats.maxHp > 0 ? enemy.stats.hp / enemy.stats.maxHp : 0;
@@ -10310,6 +10506,20 @@ function applySacredShieldEffect(skill, caster, target) {
       pushBattleLog(`→ ${targetName}獲得了 ${shieldAmount} 護盾！`);
     } else {
       pushLog(`${targetName}獲得了 ${shieldAmount} 護盾！`);
+    }
+  }
+}
+
+// 聖光洗禮：治療後加護盾
+function applyHealShieldPower(skill, target) {
+  if (!skill || !target || !skill.shieldPower) return;
+  const shieldAmount = skill.shieldPower;
+  if (shieldAmount > 0) {
+    target.stats.shield = (target.stats.shield || 0) + shieldAmount;
+    const targetName = target === state.hero ? '勇者' : target.name;
+    const isInBattle = state.ui.battle && state.ui.battle.active;
+    if (isInBattle) {
+      pushBattleLog(`→ ${targetName}獲得了 ${shieldAmount} 護盾！`);
     }
   }
 }
@@ -10812,6 +11022,61 @@ function getAgilityPassiveEffects(hero) {
   return effects;
 }
 
+// 獲取同伴流派分歧被動效果
+function getSpecPassiveEffects(character) {
+  const effects = {
+    lowHpAttackBoost: 0,      // 狂戰之血：HP缺少→攻擊加成上限
+    turnAttackStackRate: 0,   // 劍意凝聚：每回合攻擊累加率
+    turnAttackStackMax: 0,    // 劍意凝聚：攻擊累加上限
+    auraValueMultiplier: 0,   // 光環大師：光環效果值倍率
+    auraFreeCast: false,      // 光環大師：光環免費施放
+    damageTakenReduction: 0,  // 鐵壁之心：受傷減免
+    healBoost: 0,             // 聖光恩澤：治療效果加成
+    magicDamageBoost: 0,      // 魔力增幅：魔法傷害加成
+    critDamageBoost: 0,       // 致命本能：暴擊傷害加成
+    poisonDamageBoost: 0,     // 幻影毒術：中毒傷害加成
+    vitalityBonus: 0,         // 戰僧之力：體力加成（固定值）
+    vitalityPercentBonus: 0,  // 戰僧之力：體力百分比加成
+    attackBoost: 0,           // 戰僧之力：攻擊力加成（非劍流派）
+    critBoost: 0,             // 致命本能：暴擊率加成
+    dodgeBoost: 0,            // 幻影毒術：閃避率加成
+    hpPercentBonus: 0,        // 魔力護體：maxHP百分比加成
+    defensePercentBonus: 0,   // 魔力護體：防禦百分比加成
+    healOnHitRatio: 0,        // 戰僧之力：攻擊時恢復HP最低隊友
+  };
+
+  if (!character || !character.skills) return effects;
+
+  character.skills.forEach(skillId => {
+    const skill = SKILL_LOOKUP.get(skillId);
+    if (!skill || skill.kind !== 'passive' || !skill.isSpecPassive) return;
+
+    if (skill.lowHpAttackBoost !== undefined) effects.lowHpAttackBoost = skill.lowHpAttackBoost;
+    if (skill.turnAttackStackRate !== undefined) effects.turnAttackStackRate = skill.turnAttackStackRate;
+    if (skill.turnAttackStackMax !== undefined) effects.turnAttackStackMax = skill.turnAttackStackMax;
+    if (skill.auraValueMultiplier !== undefined) effects.auraValueMultiplier = skill.auraValueMultiplier;
+    if (skill.auraFreeCast !== undefined) effects.auraFreeCast = skill.auraFreeCast;
+    if (skill.damageTakenReduction !== undefined) effects.damageTakenReduction = skill.damageTakenReduction;
+    if (skill.healBoost !== undefined) effects.healBoost = skill.healBoost;
+    if (skill.magicDamageBoost !== undefined) effects.magicDamageBoost += skill.magicDamageBoost;
+    if (skill.critDamageBoost !== undefined) effects.critDamageBoost = skill.critDamageBoost;
+    if (skill.poisonDamageBoost !== undefined) effects.poisonDamageBoost = skill.poisonDamageBoost;
+    if (skill.vitalityBonus !== undefined) effects.vitalityBonus = skill.vitalityBonus;
+    if (skill.vitalityPercentBonus !== undefined) effects.vitalityPercentBonus = skill.vitalityPercentBonus;
+    // attackBoost：只計入非劍流派（劍流派已由 getSwordPassiveEffects 處理）
+    if (skill.attackBoost !== undefined && skill.flow !== 'sword') {
+      effects.attackBoost = Math.max(effects.attackBoost, skill.attackBoost);
+    }
+    if (skill.critBoost !== undefined) effects.critBoost = Math.max(effects.critBoost, skill.critBoost);
+    if (skill.dodgeBoost !== undefined) effects.dodgeBoost = Math.max(effects.dodgeBoost, skill.dodgeBoost);
+    if (skill.hpPercentBonus !== undefined) effects.hpPercentBonus = skill.hpPercentBonus;
+    if (skill.defensePercentBonus !== undefined) effects.defensePercentBonus = skill.defensePercentBonus;
+    if (skill.healOnHitRatio !== undefined) effects.healOnHitRatio = skill.healOnHitRatio;
+  });
+
+  return effects;
+}
+
 // 計算魔防（魔法防禦力）
 function calculateMagicDefense(character, characterType = 'hero') {
   let recovery = 0;
@@ -10896,6 +11161,11 @@ function calculateCritChance(attacker, skill = null) {
     const agilityEffects = getAgilityPassiveEffects(attacker);
     if (agilityEffects.critRateBonus > 0) {
       critChance += agilityEffects.critRateBonus;
+    }
+    // 流派分歧被動：致命本能暴擊率加成
+    const specCritEffects = getSpecPassiveEffects(attacker);
+    if (specCritEffects.critBoost > 0) {
+      critChance += specCritEffects.critBoost;
     }
   } else {
     // 敵人：會心一擊率 = 5 + 敏捷 / 15（小數無條件進位）
@@ -11008,8 +11278,13 @@ function calculateDodgeRate(character) {
     if (agilityEffects.dodgeRateBonus > 0) {
       dodgeRate += agilityEffects.dodgeRateBonus;
     }
+    // 流派分歧被動：幻影毒術閃避加成
+    const specDodgeEffects = getSpecPassiveEffects(character);
+    if (specDodgeEffects.dodgeBoost > 0) {
+      dodgeRate += specDodgeEffects.dodgeBoost;
+    }
   }
-  
+
   return dodgeRate;
 }
 
@@ -11119,11 +11394,17 @@ function calculateSkillDamage(skill, attacker, target) {
     }
     
     // 應用魔法型被動技能：增加魔法傷害（英雄和同伴都可以有魔法型被動技能）
-      const magicEffects = getMagicPassiveEffects(attacker);
-      if (magicEffects.magicDamageBoost > 0) {
-        baseDamage = Math.ceil(baseDamage * (1 + magicEffects.magicDamageBoost));
+    const magicEffects = getMagicPassiveEffects(attacker);
+    if (magicEffects.magicDamageBoost > 0) {
+      baseDamage = Math.ceil(baseDamage * (1 + magicEffects.magicDamageBoost));
     }
-    
+
+    // 魔力增幅被動：額外魔法傷害加成
+    const specMagicEffects = getSpecPassiveEffects(attacker);
+    if (specMagicEffects.magicDamageBoost > 0) {
+      baseDamage = Math.ceil(baseDamage * (1 + specMagicEffects.magicDamageBoost));
+    }
+
     // 法術不受防守減傷
     defense = 0;
   } else if (skill.flow === 'sword') {
@@ -11212,9 +11493,40 @@ function calculateSkillDamage(skill, attacker, target) {
       const totalAttrs = getCompanionTotalAttributes(attacker);
       attack = totalAttrs.attack;
       magic = totalAttrs.magic;
-      
-      // 應用劍意buff：提升攻擊力
+
+      // 應用劍士型被動技能：額外提升攻擊力（同伴也可能有）
+      const companionSwordEffects = getSwordPassiveEffects(attacker);
+      if (companionSwordEffects.attackBoost > 0) {
+        attack = Math.round(attack * (1 + companionSwordEffects.attackBoost));
+      }
+
+      // 流派分歧被動效果
+      const specAttackEffects = getSpecPassiveEffects(attacker);
+      // 戰僧之力等非劍流派attackBoost
+      if (specAttackEffects.attackBoost > 0) {
+        attack = Math.round(attack * (1 + specAttackEffects.attackBoost));
+      }
+      // 狂戰之血：HP缺少比例 → 攻擊加成
+      if (specAttackEffects.lowHpAttackBoost > 0) {
+        const missingHpPercent = 1 - (attacker.stats.hp / attacker.stats.maxHp);
+        const bonusPercent = Math.min(specAttackEffects.lowHpAttackBoost, missingHpPercent * specAttackEffects.lowHpAttackBoost);
+        attack = Math.round(attack * (1 + bonusPercent));
+      }
+      // 劍意凝聚：回合累加攻擊力
       const battle = state.ui.battle;
+      if (specAttackEffects.turnAttackStackRate > 0 && battle) {
+        const companionIndex = state.companions.indexOf(attacker);
+        if (companionIndex >= 0 && battle.companionBuffs && battle.companionBuffs[companionIndex] && battle.companionBuffs[companionIndex].turnAttackStack) {
+          attack = Math.round(attack * (1 + battle.companionBuffs[companionIndex].turnAttackStack));
+        }
+      }
+      // 聖光裁決：recovery流攻擊，傷害加上回復力
+      if (skill.useRecoveryForDamage) {
+        const recovery = totalAttrs.recovery || 0;
+        attack += Math.floor(recovery * 0.5);
+      }
+
+      // 應用劍意buff：提升攻擊力
       if (battle && battle.companionBuffs) {
         const companionIndex = state.companions.indexOf(attacker);
         if (companionIndex >= 0 && battle.companionBuffs[companionIndex] && battle.companionBuffs[companionIndex].swordIntent) {
@@ -11310,7 +11622,102 @@ function calculateSkillDamage(skill, attacker, target) {
         baseDamage = attack + skillPower;
       }
     }
-    
+
+    // 計算目標的防禦值
+    const isTargetHero = target === state.hero;
+    const activeCompanion = getActiveCompanion();
+    const isTargetCompanion = activeCompanion && target === activeCompanion;
+
+    let initialDefense = 0;
+    if (isTargetHero) {
+      const targetAttrs = getHeroTotalAttributes(target);
+      initialDefense = targetAttrs.defense + getEquipmentDefense(target);
+      defense = initialDefense;
+    } else if (isTargetCompanion) {
+      const targetAttrs = getCompanionTotalAttributes(target);
+      initialDefense = targetAttrs.defense;
+      defense = initialDefense;
+    } else {
+      // 敵人目標
+      initialDefense = target.attributes ? target.attributes.defense : (target.defense || 0);
+      defense = initialDefense;
+    }
+
+    // 檢查是否有破甲之刃buff：無視防禦（僅對敵人目標有效）
+    const battle = state.ui.battle;
+    let hasIgnoreDefense = false;
+    if (battle && !isTargetHero && !isTargetCompanion) {
+      if (isHero && battle.heroBuffs && battle.heroBuffs.ignoreDefense) {
+        defense = 0; // 無視防禦
+        hasIgnoreDefense = true;
+      } else if (isCompanion) {
+        const companionIndex = state.companions.indexOf(attacker);
+        if (companionIndex >= 0 && battle.companionBuffs && battle.companionBuffs[companionIndex] && battle.companionBuffs[companionIndex].ignoreDefense) {
+          defense = 0; // 無視防禦
+          hasIgnoreDefense = true;
+        }
+      }
+    }
+
+    // 檢查目標是否有防守值減少debuff（酸性箭）
+    // 如果已經有破甲之刃，跳過defenseDown的計算（因為防禦已經是0）
+    if (battle && !hasIgnoreDefense) {
+      // 檢查敵人debuff（友方對敵人施加的）
+      if (battle.enemyDebuffs) {
+        const enemyIndex = battle.enemies.indexOf(target);
+        if (enemyIndex >= 0 && battle.enemyDebuffs[enemyIndex] && battle.enemyDebuffs[enemyIndex].defenseDown) {
+          const defenseDown = battle.enemyDebuffs[enemyIndex].defenseDown;
+          defense = Math.max(0, Math.floor(defense * (1 - defenseDown.ratio)));
+        }
+      }
+
+      // 檢查友方debuff（敵人對友方施加的）
+      if (battle.friendlyDebuffs) {
+        if (isTargetHero && battle.friendlyDebuffs.hero && battle.friendlyDebuffs.hero.defenseDown) {
+          const defenseDown = battle.friendlyDebuffs.hero.defenseDown;
+          defense = Math.max(0, Math.floor(defense * (1 - defenseDown.ratio)));
+        } else if (isTargetCompanion && battle.friendlyDebuffs.companions) {
+          const companionIndex = state.companions.indexOf(target);
+          if (companionIndex >= 0 && battle.friendlyDebuffs.companions[companionIndex] && battle.friendlyDebuffs.companions[companionIndex].defenseDown) {
+            const defenseDown = battle.friendlyDebuffs.companions[companionIndex].defenseDown;
+            defense = Math.max(0, Math.floor(defense * (1 - defenseDown.ratio)));
+          }
+        }
+      }
+    }
+
+    // 劍神降臨：輸出防守值日誌
+    if (skill.dynamicMpCost && skill.dynamicMpCost === true && skill.weaponmasterPath === 'sword_god') {
+      console.log(`[劍神降臨] 初始防守值: ${initialDefense}, 最終防守值: ${defense}${hasIgnoreDefense ? ' (破甲之刃無視防禦)' : ''}`);
+    }
+  } else if (skill.flow === 'recovery' && skill.kind === 'attack') {
+    // 聖光裁決：recovery流物理攻擊，以攻擊+回復計算傷害
+    let attack = 0;
+    let recovery = 0;
+    if (isHero) {
+      const totalAttrs = getHeroTotalAttributes(attacker);
+      attack = totalAttrs.attack;
+      attack += getEquipmentAttack(attacker);
+      recovery = totalAttrs.recovery;
+    } else if (isCompanion) {
+      const totalAttrs = getCompanionTotalAttributes(attacker);
+      attack = totalAttrs.attack;
+      recovery = totalAttrs.recovery;
+
+      // 流派分歧被動效果
+      const specAttackEffects = getSpecPassiveEffects(attacker);
+      if (specAttackEffects.lowHpAttackBoost > 0) {
+        const missingHpPercent = 1 - (attacker.stats.hp / attacker.stats.maxHp);
+        const bonusPercent = Math.min(specAttackEffects.lowHpAttackBoost, missingHpPercent * specAttackEffects.lowHpAttackBoost);
+        attack = Math.round(attack * (1 + bonusPercent));
+      }
+    } else {
+      attack = attacker.attributes ? attacker.attributes.attack : 0;
+      recovery = attacker.attributes ? attacker.attributes.recovery : 0;
+    }
+    // 傷害 = 攻擊力 + 回復力×50% + 技能加值
+    baseDamage = attack + Math.floor(recovery * 0.5) + skillPower;
+
     // 計算目標的防禦值
     const isTargetHero = target === state.hero;
     const activeCompanion = getActiveCompanion();
@@ -11986,16 +12393,33 @@ function calculateSkillDamage(skill, attacker, target) {
   }
   
   if (isCrit) {
+    // 致命本能被動：暴擊傷害加成
+    const specCritEffects = getSpecPassiveEffects(attacker);
+    if (specCritEffects.critDamageBoost > 0) {
+      critMultiplier += specCritEffects.critDamageBoost;
+    }
     damage = Math.round(damage * critMultiplier); // 使用相應的暴擊倍率
   }
   
+  // 鐵壁之心被動：目標受傷減免
+  {
+    const isTargetHeroFinal = target === state.hero;
+    const isTargetCompanionFinal = state.companions && state.companions.some(c => c === target);
+    if (isTargetHeroFinal || isTargetCompanionFinal) {
+      const targetSpecEffects = getSpecPassiveEffects(target);
+      if (targetSpecEffects.damageTakenReduction > 0) {
+        damage = Math.round(damage * (1 - targetSpecEffects.damageTakenReduction));
+      }
+    }
+  }
+
   // 輸出攻擊傷害計算日誌（僅攻擊類型技能，排除治療和聖擊）
   if (skill.kind === 'attack' && !isEnhancedHeal) {
     const attackerName = isHero ? '勇者' : (isCompanion ? attacker.name : '敵人');
     const targetName = target === state.hero ? '勇者' : (target.name || '目標');
     console.log(`[傷害計算] ${attackerName} 使用「${skill.name}」攻擊 ${targetName}：基礎傷害=${baseDamage}, 防禦值=${defense}, 最終傷害=${damage}${isCrit ? ' (會心一擊)' : ''}`);
   }
-  
+
   return { damage, isCrit };
 }
 
@@ -12012,29 +12436,41 @@ function calculateHealingFor(skill, healer) {
   if (skill.recoveryRatio !== undefined) {
     const base = baseValue + Math.floor(recovery * skill.recoveryRatio);
     let finalBase = Math.ceil(base);
-    
+
     // 應用恢復型被動技能：增加治療效果
     const recoveryEffects = getRecoveryPassiveEffects(healer);
     if (recoveryEffects.recoveryBoost > 0) {
       finalBase = Math.ceil(finalBase * (1 + recoveryEffects.recoveryBoost));
     }
-    
+
+    // 應用聖光恩澤被動：healBoost
+    const specEffects = getSpecPassiveEffects(healer);
+    if (specEffects.healBoost > 0) {
+      finalBase = Math.ceil(finalBase * (1 + specEffects.healBoost));
+    }
+
     return finalBase;
   }
-  
+
   // 聖擊使用回復力/2，其他治療技能使用回復力/3
   const isEnhancedHeal = skill.id && skill.id.startsWith('enhanced_heal_');
   const recoveryDivisor = isEnhancedHeal ? 2 : 3;
-  
+
   // 治療效果：固定值 + 回復力/divisor
   let base = baseValue + Math.floor(recovery / recoveryDivisor);
-  
+
   // 應用恢復型被動技能：增加治療效果（英雄和同伴都可以有恢復型被動技能）
-    const recoveryEffects = getRecoveryPassiveEffects(healer);
-    if (recoveryEffects.recoveryBoost > 0) {
-      base = Math.ceil(base * (1 + recoveryEffects.recoveryBoost));
+  const recoveryEffects = getRecoveryPassiveEffects(healer);
+  if (recoveryEffects.recoveryBoost > 0) {
+    base = Math.ceil(base * (1 + recoveryEffects.recoveryBoost));
   }
-  
+
+  // 應用聖光恩澤被動：healBoost
+  const specEffects = getSpecPassiveEffects(healer);
+  if (specEffects.healBoost > 0) {
+    base = Math.ceil(base * (1 + specEffects.healBoost));
+  }
+
   return Math.ceil(base);
 }
 
@@ -12310,7 +12746,23 @@ function executeActionQueue() {
   
   // 增加回合數
   battle.turnCount = (battle.turnCount || 0) + 1;
-  
+
+  // 劍意凝聚被動：每回合累加攻擊力
+  if (battle.companionBuffs) {
+    (state.companions || []).forEach((companion, index) => {
+      if (companion && companion.stats.hp > 0 && battle.companionBuffs[index] && battle.companionBuffs[index].turnAttackStack !== undefined) {
+        const specEffects = getSpecPassiveEffects(companion);
+        if (specEffects.turnAttackStackRate > 0) {
+          const maxStack = specEffects.turnAttackStackMax > 0 ? specEffects.turnAttackStackMax : 9999;
+          battle.companionBuffs[index].turnAttackStack = Math.min(
+            maxStack,
+            battle.companionBuffs[index].turnAttackStack + specEffects.turnAttackStackRate
+          );
+        }
+      }
+    });
+  }
+
   // 觸發神聖回響的緩慢恢復效果（每回合開始時）
   triggerHealingEchoEffects();
   
@@ -12618,7 +13070,33 @@ function executeActionQueue() {
           }
         });
       }
-      
+
+      // 2. 處理魔法反彈buff持續時間
+      if (battle.heroBuffs && battle.heroBuffs.magicReflect) {
+        battle.heroBuffs.magicReflect.duration -= 1;
+        if (battle.heroBuffs.magicReflect.duration <= 0) {
+          pushBattleLog(`→ 勇者的魔法反彈效果結束了。`);
+          battle.heroBuffs.magicReflect = null;
+        }
+      }
+
+      // 處理同伴的魔法反彈buff
+      if (battle.companionBuffs) {
+        Object.keys(battle.companionBuffs).forEach(key => {
+          const companionIndex = parseInt(key);
+          if (!isNaN(companionIndex) && battle.companionBuffs[companionIndex] && battle.companionBuffs[companionIndex].magicReflect) {
+            battle.companionBuffs[companionIndex].magicReflect.duration -= 1;
+            if (battle.companionBuffs[companionIndex].magicReflect.duration <= 0) {
+              const companion = state.companions[companionIndex];
+              if (companion) {
+                pushBattleLog(`→ ${companion.name}的魔法反彈效果結束了。`);
+              }
+              battle.companionBuffs[companionIndex].magicReflect = null;
+            }
+          }
+        });
+      }
+
       // 回合結束時結算中毒傷害
       // 1. 處理敵人的中毒
       if (battle.enemyDebuffs) {
@@ -13234,6 +13712,33 @@ function determineCompanionAction(companion) {
     }
   }
   
+  // 1.7. 檢查是否有debuff技能（毒霧等）
+  const debuffSkills = availableSkills.filter(skill => skill.kind === 'debuff');
+  if (debuffSkills.length > 0) {
+    // 檢查是否有未中毒的活著敵人
+    const unpoisonedEnemies = aliveEnemies.filter((enemy, idx) => {
+      const realIdx = battle.enemies.indexOf(enemy);
+      return !(battle.enemyDebuffs && battle.enemyDebuffs[realIdx] && battle.enemyDebuffs[realIdx].poison);
+    });
+    if (unpoisonedEnemies.length > 0) {
+      let debuffUseChance = 0.6;
+      if (typeof aiBehavior.skillUseChance === 'number') {
+        const delta = aiBehavior.skillUseChance - 0.5;
+        debuffUseChance = 0.6 + delta;
+      }
+      debuffUseChance = Math.max(0, Math.min(0.95, debuffUseChance));
+      if (Math.random() < debuffUseChance) {
+        const selectedDebuff = debuffSkills[Math.floor(Math.random() * debuffSkills.length)];
+        if (selectedDebuff.aoe) {
+          return { type: 'skill', skillId: selectedDebuff.id, target: null };
+        } else {
+          const targetEnemy = unpoisonedEnemies[Math.floor(Math.random() * unpoisonedEnemies.length)];
+          return { type: 'skill', skillId: selectedDebuff.id, targetEnemyIndex: battle.enemies.indexOf(targetEnemy) };
+        }
+      }
+    }
+  }
+
   // 2. 判斷是否使用攻擊技能（物理/魔法等）
   // 基礎80%機率，個性做加減（以0.5為中性點）
   const baseSkillUseChance = 0.8;
@@ -13673,8 +14178,8 @@ function executeCompanionAction(companion, action, resolve) {
           return;
         }
         
-        // 如果是攻擊技能，需要設置目標敵人
-        if (skill.kind === 'attack' && !skill.aoe) {
+        // 如果是攻擊/debuff技能且非AOE，需要設置目標敵人
+        if ((skill.kind === 'attack' || skill.kind === 'debuff') && !skill.aoe) {
           // 單體攻擊技能需要目標
           let targetIndex = action.targetEnemyIndex;
           
@@ -14790,63 +15295,81 @@ function performSkillDirectly(skillId) {
     battle.tempHpCost = 0;
   } else if (skill.kind === 'debuff') {
     // Debuff技能（下毒等）
-    if (skill.id && skill.id.startsWith('poison_attack')) {
-      // 下毒技能
-      const targetIndex = battle.selectedEnemyIndex;
-      if (targetIndex === null || targetIndex < 0 || targetIndex >= battle.enemies.length) {
-        pushBattleLog(`無法使用「${skill.name}」：需要選擇目標。`);
-        hero.stats.mp += mpCost; // 退回MP
-        return;
-      }
-      
-      const targetEnemy = battle.enemies[targetIndex];
-      if (!targetEnemy || targetEnemy.stats.hp <= 0) {
-        pushBattleLog(`無法使用「${skill.name}」：目標已死亡。`);
-        hero.stats.mp += mpCost; // 退回MP
-        return;
-      }
-      
-      // 計算施法者的敏捷值
+    if (skill.poisonRatio !== undefined) {
+      // 下毒技能（包括毒霧等AOE毒技能）
       const totalAttrs = getHeroTotalAttributes(hero);
       const casterAgility = totalAttrs.agility;
-      
+
       // 計算中毒傷害（根據技能等級的比率）
-      const poisonDamage = Math.max(1, Math.floor(casterAgility * (skill.poisonRatio || 0.3)));
+      let poisonDamage = Math.max(1, Math.floor(casterAgility * (skill.poisonRatio || 0.3)));
+      // 幻影毒術被動：中毒傷害加成
+      const specPoisonEffects = getSpecPassiveEffects(hero);
+      if (specPoisonEffects.poisonDamageBoost > 0) {
+        poisonDamage = Math.round(poisonDamage * (1 + specPoisonEffects.poisonDamageBoost));
+      }
       const poisonDuration = skill.poisonDuration || 3;
-      
+
       // 初始化 enemyDebuffs
       if (!battle.enemyDebuffs) {
         battle.enemyDebuffs = {};
       }
-      
-      // 設置中毒狀態（如果已經有中毒狀態，重置持續時間和傷害，而不是累加）
-      if (!battle.enemyDebuffs[targetIndex]) {
-        battle.enemyDebuffs[targetIndex] = {};
-      }
-      
-      const hadPoison = battle.enemyDebuffs[targetIndex].poison ? true : false;
-      battle.enemyDebuffs[targetIndex].poison = {
-        duration: poisonDuration, // 重置持續時間
-        damage: poisonDamage, // 使用新的傷害值
-        casterAgility: casterAgility
-      };
-      
-      pushBattleLog(`勇者對${targetEnemy.name}施放「${skill.name}」！`);
-      
-      // 立即應用一次中毒傷害（施加的那一回合就生效）
-      const oldHp = targetEnemy.stats.hp;
-      targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - poisonDamage);
-      const immediateDamage = oldHp - targetEnemy.stats.hp;
-      if (immediateDamage > 0) {
-        pushBattleLog(`→ ${targetEnemy.name}立即受到中毒傷害 ${immediateDamage} 點！`);
-      }
-      
-      if (hadPoison) {
-        pushBattleLog(`→ ${targetEnemy.name}的毒被刷新！將在接下來的${poisonDuration}回合中，每回合結束時受到 ${poisonDamage} 傷害（不受防守影響）。`);
+
+      // 決定目標列表（AOE 或單體）
+      const targets = [];
+      if (skill.aoe) {
+        battle.enemies.forEach((enemy, idx) => {
+          if (enemy && enemy.stats.hp > 0) targets.push({ enemy, index: idx });
+        });
       } else {
-        pushBattleLog(`→ ${targetEnemy.name}中毒了！將在接下來的${poisonDuration}回合中，每回合結束時受到 ${poisonDamage} 傷害（不受防守影響）。`);
+        const targetIndex = battle.selectedEnemyIndex;
+        if (targetIndex === null || targetIndex < 0 || targetIndex >= battle.enemies.length) {
+          pushBattleLog(`無法使用「${skill.name}」：需要選擇目標。`);
+          hero.stats.mp += mpCost; // 退回MP
+          return;
+        }
+        const targetEnemy = battle.enemies[targetIndex];
+        if (!targetEnemy || targetEnemy.stats.hp <= 0) {
+          pushBattleLog(`無法使用「${skill.name}」：目標已死亡。`);
+          hero.stats.mp += mpCost; // 退回MP
+          return;
+        }
+        targets.push({ enemy: targetEnemy, index: targetIndex });
       }
-      
+
+      if (targets.length === 0) {
+        pushBattleLog(`無法使用「${skill.name}」：沒有有效目標。`);
+        hero.stats.mp += mpCost;
+        return;
+      }
+
+      pushBattleLog(`勇者施放「${skill.name}」！`);
+
+      targets.forEach(({ enemy: targetEnemy, index: targetIndex }) => {
+        if (!battle.enemyDebuffs[targetIndex]) {
+          battle.enemyDebuffs[targetIndex] = {};
+        }
+        const hadPoison = battle.enemyDebuffs[targetIndex].poison ? true : false;
+        battle.enemyDebuffs[targetIndex].poison = {
+          duration: poisonDuration,
+          damage: poisonDamage,
+          casterAgility: casterAgility
+        };
+
+        // 立即應用一次中毒傷害
+        const oldHp = targetEnemy.stats.hp;
+        targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - poisonDamage);
+        const immediateDamage = oldHp - targetEnemy.stats.hp;
+        if (immediateDamage > 0) {
+          pushBattleLog(`→ ${targetEnemy.name}立即受到中毒傷害 ${immediateDamage} 點！`);
+        }
+
+        if (hadPoison) {
+          pushBattleLog(`→ ${targetEnemy.name}的毒被刷新！${poisonDuration}回合，每回合 ${poisonDamage} 傷害。`);
+        } else {
+          pushBattleLog(`→ ${targetEnemy.name}中毒了！${poisonDuration}回合，每回合 ${poisonDamage} 傷害。`);
+        }
+      });
+
       battle.menu = 'root';
       endHeroTurn();
     } else {
@@ -14973,29 +15496,42 @@ function performSkillDirectly(skillId) {
     if (skill.aoe) {
       hero.stats.mp -= mpCost;
       pushBattleLog(`勇者施放「${skill.name}」！`);
-      
-      // 計算護盾值
-      const totalAttrs = getHeroTotalAttributes(hero);
-      const recovery = totalAttrs.recovery;
-      const shieldAmount = skill.power + Math.floor(recovery / 2);
-      
-      // 給自己添加護盾
-      if (hero.stats.hp > 0) {
-        hero.stats.shield = (hero.stats.shield || 0) + shieldAmount;
-        pushBattleLog(`→ 對自己施加 ${shieldAmount} 護盾！`);
+
+      if (skill.damageReduction !== undefined) {
+        // 鐵壁守護：全隊傷害減免
+        const dr = skill.damageReduction;
+        battle.heroBuffs.guard = Math.max(battle.heroBuffs.guard, dr);
+        pushBattleLog(`→ 勇者獲得傷害減免 ${Math.round(dr * 100)}%！`);
+        if (!battle.companionBuffs) battle.companionBuffs = {};
+        battle.companionBuffs.guard = Math.max(battle.companionBuffs.guard || 0, dr);
+        const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
+        activeCompanions.forEach(comp => {
+          pushBattleLog(`→ ${comp.name}獲得傷害減免 ${Math.round(dr * 100)}%！`);
+        });
+      } else {
+        // 護盾類全體輔助技能
+        const totalAttrs = getHeroTotalAttributes(hero);
+        const recovery = totalAttrs.recovery;
+        const shieldAmount = skill.shieldMultiplier ? Math.floor(skill.mpCost * skill.shieldMultiplier) : skill.power + Math.floor(recovery / 2);
+
+        // 給自己添加護盾
+        if (hero.stats.hp > 0) {
+          hero.stats.shield = (hero.stats.shield || 0) + shieldAmount;
+          pushBattleLog(`→ 對自己施加 ${shieldAmount} 護盾！`);
+        }
+
+        // 給所有同伴添加護盾
+        const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
+        activeCompanions.forEach(companion => {
+          companion.stats.shield = (companion.stats.shield || 0) + shieldAmount;
+          pushBattleLog(`→ 對${companion.name}施加 ${shieldAmount} 護盾！`);
+        });
       }
-      
-      // 給所有同伴添加護盾
-      const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
-      activeCompanions.forEach(companion => {
-        companion.stats.shield = (companion.stats.shield || 0) + shieldAmount;
-        pushBattleLog(`→ 對${companion.name}施加 ${shieldAmount} 護盾！`);
-      });
     } else {
       // 單體輔助技能
       let targetCharacter = null;
       let targetName = '';
-      
+
       if (battle.selectedEnemyIndex === -1) {
         // 目標是自己
         targetCharacter = hero;
@@ -15016,17 +15552,35 @@ function performSkillDirectly(skillId) {
       }
       
       hero.stats.mp -= mpCost;
-      
-      // 計算護盾值
-      const totalAttrs = getHeroTotalAttributes(hero);
-      const recovery = totalAttrs.recovery;
-      const shieldAmount = skill.power + Math.floor(recovery / 2);
-      
-      // 給目標添加護盾
-      targetCharacter.stats.shield = (targetCharacter.stats.shield || 0) + shieldAmount;
-      pushBattleLog(`勇者施放「${skill.name}」，對${targetName}施加 ${shieldAmount} 護盾！`);
+
+      // 檢查是否為魔法反彈技能
+      if (skill.reflectRatio && skill.reflectDuration) {
+        const reflectBuff = { reflectRatio: skill.reflectRatio, duration: skill.reflectDuration };
+        const isTargetHero = targetCharacter === state.hero;
+        if (isTargetHero) {
+          battle.heroBuffs.magicReflect = reflectBuff;
+        } else {
+          const companionIndex = state.companions ? state.companions.indexOf(targetCharacter) : -1;
+          if (companionIndex >= 0) {
+            if (!battle.companionBuffs[companionIndex]) {
+              battle.companionBuffs[companionIndex] = {};
+            }
+            battle.companionBuffs[companionIndex].magicReflect = reflectBuff;
+          }
+        }
+        pushBattleLog(`勇者施放「${skill.name}」，對${targetName}施加魔法反彈（${skill.reflectDuration}回合）！`);
+      } else {
+        // 計算護盾值
+        const totalAttrs = getHeroTotalAttributes(hero);
+        const recovery = totalAttrs.recovery;
+        const shieldAmount = skill.shieldMultiplier ? Math.floor(skill.mpCost * skill.shieldMultiplier) : skill.power + Math.floor(recovery / 2);
+
+        // 給目標添加護盾
+        targetCharacter.stats.shield = (targetCharacter.stats.shield || 0) + shieldAmount;
+        pushBattleLog(`勇者施放「${skill.name}」，對${targetName}施加 ${shieldAmount} 護盾！`);
+      }
     }
-    
+
     renderBattleDialog();
     return;
   } else if (skill.kind === 'heal') {
@@ -15043,7 +15597,9 @@ function performSkillDirectly(skillId) {
       totalHeal += selfAmount;
       // 觸發神聖護盾效果（如果是神聖護盾技能）
       applySacredShieldEffect(skill, hero, hero);
-      
+      // 觸發聖光洗禮護盾效果
+      applyHealShieldPower(skill, hero);
+
       // 治疗所有同伴（包括已死亡的，但通常只治疗活着的）
       const activeCompanions = (state.companions || []).filter(c => c && c.stats);
       activeCompanions.forEach(companion => {
@@ -15056,6 +15612,8 @@ function performSkillDirectly(skillId) {
           totalHeal += companionAmount;
           // 觸發神聖護盾效果（如果是神聖護盾技能）
           applySacredShieldEffect(skill, hero, companion);
+          // 觸發聖光洗禮護盾效果
+          applyHealShieldPower(skill, companion);
         }
       });
       
@@ -15105,6 +15663,8 @@ function performSkillDirectly(skillId) {
         applyDeathWardEffect(skill, hero, target);
         // 觸發神聖回響效果
         applyHealingEchoEffect(skill, hero, target, amount);
+        // 觸發聖光洗禮護盾效果
+        applyHealShieldPower(skill, target);
         } else if (!isReviveSkill && target.stats.hp <= 0) {
           // 普通治療技能無法復活已死亡的角色
           pushBattleLog(`勇者施放「${skill.name}」，但${target.name}已死亡，無法回復。`);
@@ -16228,77 +16788,93 @@ function performCompanionSkillDirectly(companion, skill, target) {
     }
   } else if (skill.kind === 'debuff') {
     // Debuff技能（下毒等）
-    if (skill.id && skill.id.startsWith('poison_attack')) {
-      // 下毒技能
-      let targetIndex = battle.selectedEnemyIndex;
-      
-      // 如果沒有選擇目標，自動選擇第一個活著的敵人
-      if (targetIndex === null || targetIndex < 0 || targetIndex >= battle.enemies.length) {
-        const aliveEnemies = battle.enemies.filter(e => e.stats.hp > 0);
-        if (aliveEnemies.length === 0) {
-          pushBattleLog(`${companion.name}無法使用「${skill.name}」：沒有可攻擊的目標。`);
-          companion.stats.mp += mpCost; // 退回MP
-          return;
-        }
-        targetIndex = battle.enemies.indexOf(aliveEnemies[0]);
-        battle.selectedEnemyIndex = targetIndex;
-      }
-      
-      const targetEnemy = battle.enemies[targetIndex];
-      if (!targetEnemy || targetEnemy.stats.hp <= 0) {
-        pushBattleLog(`${companion.name}無法使用「${skill.name}」：目標已死亡。`);
-        companion.stats.mp += mpCost; // 退回MP
-        return;
-      }
-      
-      // 計算施法者的敏捷值
+    if (skill.poisonRatio !== undefined) {
+      // 下毒技能（包括毒霧等AOE毒技能）
       const totalAttrs = getCompanionTotalAttributes(companion);
       const casterAgility = totalAttrs.agility;
-      
+
       // 計算中毒傷害（根據技能等級的比率）
-      const poisonDamage = Math.max(1, Math.floor(casterAgility * (skill.poisonRatio || 0.3)));
+      let poisonDamage = Math.max(1, Math.floor(casterAgility * (skill.poisonRatio || 0.3)));
+      // 幻影毒術被動：中毒傷害加成
+      const specPoisonEffects = getSpecPassiveEffects(companion);
+      if (specPoisonEffects.poisonDamageBoost > 0) {
+        poisonDamage = Math.round(poisonDamage * (1 + specPoisonEffects.poisonDamageBoost));
+      }
       const poisonDuration = skill.poisonDuration || 3;
-      
+
       // 初始化 enemyDebuffs
       if (!battle.enemyDebuffs) {
         battle.enemyDebuffs = {};
       }
-      
-      // 設置中毒狀態（如果已經有中毒狀態，重置持續時間和傷害，而不是累加）
-      if (!battle.enemyDebuffs[targetIndex]) {
-        battle.enemyDebuffs[targetIndex] = {};
-      }
-      
-      const hadPoison = battle.enemyDebuffs[targetIndex].poison ? true : false;
-      battle.enemyDebuffs[targetIndex].poison = {
-        duration: poisonDuration, // 重置持續時間
-        damage: poisonDamage, // 使用新的傷害值
-        casterAgility: casterAgility
-      };
-      
-      pushBattleLog(`${companion.name}對${targetEnemy.name}施放「${skill.name}」！`);
-      
-      // 立即應用一次中毒傷害（施加的那一回合就生效）
-      const oldHp = targetEnemy.stats.hp;
-      targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - poisonDamage);
-      const immediateDamage = oldHp - targetEnemy.stats.hp;
-      if (immediateDamage > 0) {
-        pushBattleLog(`→ ${targetEnemy.name}立即受到中毒傷害 ${immediateDamage} 點！`);
-      }
-      
-      if (hadPoison) {
-        pushBattleLog(`→ ${targetEnemy.name}的毒被刷新！將在接下來的${poisonDuration}回合中，每回合結束時受到 ${poisonDamage} 傷害（不受防守影響）。`);
+
+      // 決定目標列表（AOE 或單體）
+      const targets = [];
+      if (skill.aoe) {
+        battle.enemies.forEach((enemy, idx) => {
+          if (enemy && enemy.stats.hp > 0) targets.push({ enemy, index: idx });
+        });
       } else {
-        pushBattleLog(`→ ${targetEnemy.name}中毒了！將在接下來的${poisonDuration}回合中，每回合結束時受到 ${poisonDamage} 傷害（不受防守影響）。`);
+        let targetIndex = battle.selectedEnemyIndex;
+        if (targetIndex === null || targetIndex < 0 || targetIndex >= battle.enemies.length) {
+          const aliveEnemies = battle.enemies.filter(e => e.stats.hp > 0);
+          if (aliveEnemies.length === 0) {
+            pushBattleLog(`${companion.name}無法使用「${skill.name}」：沒有可攻擊的目標。`);
+            companion.stats.mp += mpCost;
+            return;
+          }
+          targetIndex = battle.enemies.indexOf(aliveEnemies[0]);
+          battle.selectedEnemyIndex = targetIndex;
+        }
+        const targetEnemy = battle.enemies[targetIndex];
+        if (!targetEnemy || targetEnemy.stats.hp <= 0) {
+          pushBattleLog(`${companion.name}無法使用「${skill.name}」：目標已死亡。`);
+          companion.stats.mp += mpCost;
+          return;
+        }
+        targets.push({ enemy: targetEnemy, index: targetIndex });
       }
-      
+
+      if (targets.length === 0) {
+        pushBattleLog(`${companion.name}無法使用「${skill.name}」：沒有有效目標。`);
+        companion.stats.mp += mpCost;
+        return;
+      }
+
+      pushBattleLog(`${companion.name}施放「${skill.name}」！`);
+
+      targets.forEach(({ enemy: targetEnemy, index: targetIndex }) => {
+        if (!battle.enemyDebuffs[targetIndex]) {
+          battle.enemyDebuffs[targetIndex] = {};
+        }
+        const hadPoison = battle.enemyDebuffs[targetIndex].poison ? true : false;
+        battle.enemyDebuffs[targetIndex].poison = {
+          duration: poisonDuration,
+          damage: poisonDamage,
+          casterAgility: casterAgility
+        };
+
+        // 立即應用一次中毒傷害
+        const oldHp = targetEnemy.stats.hp;
+        targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - poisonDamage);
+        const immediateDamage = oldHp - targetEnemy.stats.hp;
+        if (immediateDamage > 0) {
+          pushBattleLog(`→ ${targetEnemy.name}立即受到中毒傷害 ${immediateDamage} 點！`);
+        }
+
+        if (hadPoison) {
+          pushBattleLog(`→ ${targetEnemy.name}的毒被刷新！${poisonDuration}回合，每回合 ${poisonDamage} 傷害。`);
+        } else {
+          pushBattleLog(`→ ${targetEnemy.name}中毒了！${poisonDuration}回合，每回合 ${poisonDamage} 傷害。`);
+        }
+      });
+
       renderBattleDialog();
     } else {
       pushBattleLog(`${companion.name}使用了未知的debuff技能：${skill.name}。`);
     }
   } else if (skill.kind === 'support') {
     // 輔助技能（護盾、淨化等）
-    
+
     // 檢查是否為淨化技能
     const isPurifySkill = skill.id && (skill.id === 'purify_1' || skill.id === 'mass_purify_1');
     
@@ -16445,30 +17021,45 @@ function performCompanionSkillDirectly(companion, skill, target) {
     if (skill.aoe) {
       companion.stats.mp -= mpCost;
       pushBattleLog(`${companion.name}施放「${skill.name}」！`);
-      
-      // 計算護盾值
-      const totalAttrs = getCompanionTotalAttributes(companion);
-      const recovery = totalAttrs.recovery;
-      const shieldAmount = skill.power + Math.floor(recovery / 2);
-      
-      // 給自己添加護盾
-      if (companion.stats.hp > 0) {
-        companion.stats.shield = (companion.stats.shield || 0) + shieldAmount;
-        pushBattleLog(`→ 對自己施加 ${shieldAmount} 護盾！`);
+
+      if (skill.damageReduction !== undefined) {
+        // 鐵壁守護：全隊傷害減免
+        const dr = skill.damageReduction;
+        // 勇者
+        battle.heroBuffs.guard = Math.max(battle.heroBuffs.guard, dr);
+        pushBattleLog(`→ 勇者獲得傷害減免 ${Math.round(dr * 100)}%！`);
+        // 同伴共用guard
+        if (!battle.companionBuffs) battle.companionBuffs = {};
+        battle.companionBuffs.guard = Math.max(battle.companionBuffs.guard || 0, dr);
+        const allAlive = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
+        allAlive.forEach(comp => {
+          pushBattleLog(`→ ${comp.name}獲得傷害減免 ${Math.round(dr * 100)}%！`);
+        });
+      } else {
+        // 護盾類全體輔助技能
+        const totalAttrs = getCompanionTotalAttributes(companion);
+        const recovery = totalAttrs.recovery;
+        const shieldAmount = skill.shieldMultiplier ? Math.floor(skill.mpCost * skill.shieldMultiplier) : skill.power + Math.floor(recovery / 2);
+
+        // 給自己添加護盾
+        if (companion.stats.hp > 0) {
+          companion.stats.shield = (companion.stats.shield || 0) + shieldAmount;
+          pushBattleLog(`→ 對自己施加 ${shieldAmount} 護盾！`);
+        }
+
+        // 給勇者添加護盾（如果還活著）
+        if (state.hero && state.hero.stats.hp > 0) {
+          state.hero.stats.shield = (state.hero.stats.shield || 0) + shieldAmount;
+          pushBattleLog(`→ 對勇者施加 ${shieldAmount} 護盾！`);
+        }
+
+        // 給其他同伴添加護盾
+        const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0 && c !== companion);
+        activeCompanions.forEach(comp => {
+          comp.stats.shield = (comp.stats.shield || 0) + shieldAmount;
+          pushBattleLog(`→ 對${comp.name}施加 ${shieldAmount} 護盾！`);
+        });
       }
-      
-      // 給勇者添加護盾（如果還活著）
-      if (state.hero && state.hero.stats.hp > 0) {
-        state.hero.stats.shield = (state.hero.stats.shield || 0) + shieldAmount;
-        pushBattleLog(`→ 對勇者施加 ${shieldAmount} 護盾！`);
-      }
-      
-      // 給其他同伴添加護盾
-      const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0 && c !== companion);
-      activeCompanions.forEach(comp => {
-        comp.stats.shield = (comp.stats.shield || 0) + shieldAmount;
-        pushBattleLog(`→ 對${comp.name}施加 ${shieldAmount} 護盾！`);
-      });
     } else {
       // 單體輔助技能
       let targetCharacter = null;
@@ -16498,17 +17089,35 @@ function performCompanionSkillDirectly(companion, skill, target) {
       }
       
       companion.stats.mp -= mpCost;
-      
-      // 計算護盾值
-      const totalAttrs = getCompanionTotalAttributes(companion);
-      const recovery = totalAttrs.recovery;
-      const shieldAmount = skill.power + Math.floor(recovery / 2);
-      
-      // 給目標添加護盾
-      targetCharacter.stats.shield = (targetCharacter.stats.shield || 0) + shieldAmount;
-      pushBattleLog(`${companion.name}施放「${skill.name}」，對${targetName}施加 ${shieldAmount} 護盾！`);
+
+      // 檢查是否為魔法反彈技能
+      if (skill.reflectRatio && skill.reflectDuration) {
+        const reflectBuff = { reflectRatio: skill.reflectRatio, duration: skill.reflectDuration };
+        const isTargetHero = targetCharacter === state.hero;
+        if (isTargetHero) {
+          battle.heroBuffs.magicReflect = reflectBuff;
+        } else {
+          const companionIndex = state.companions ? state.companions.indexOf(targetCharacter) : -1;
+          if (companionIndex >= 0) {
+            if (!battle.companionBuffs[companionIndex]) {
+              battle.companionBuffs[companionIndex] = {};
+            }
+            battle.companionBuffs[companionIndex].magicReflect = reflectBuff;
+          }
+        }
+        pushBattleLog(`${companion.name}施放「${skill.name}」，對${targetName}施加魔法反彈（${skill.reflectDuration}回合）！`);
+      } else {
+        // 計算護盾值
+        const totalAttrs = getCompanionTotalAttributes(companion);
+        const recovery = totalAttrs.recovery;
+        const shieldAmount = skill.shieldMultiplier ? Math.floor(skill.mpCost * skill.shieldMultiplier) : skill.power + Math.floor(recovery / 2);
+
+        // 給目標添加護盾
+        targetCharacter.stats.shield = (targetCharacter.stats.shield || 0) + shieldAmount;
+        pushBattleLog(`${companion.name}施放「${skill.name}」，對${targetName}施加 ${shieldAmount} 護盾！`);
+      }
     }
-    
+
     renderBattleDialog();
     return;
   } else if (skill.kind === 'heal') {
@@ -16528,8 +17137,10 @@ function performCompanionSkillDirectly(companion, skill, target) {
         totalHeal += actualHealed;
         // 觸發神聖護盾效果（如果是神聖護盾技能）
         applySacredShieldEffect(skill, companion, state.hero);
+        // 觸發聖光洗禮護盾效果
+        applyHealShieldPower(skill, state.hero);
       }
-      
+
       // 治疗所有同伴（包括自己）
       const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
       activeCompanions.forEach(comp => {
@@ -16541,6 +17152,8 @@ function performCompanionSkillDirectly(companion, skill, target) {
         totalHeal += actualHealed;
         // 觸發神聖護盾效果（如果是神聖護盾技能）
         applySacredShieldEffect(skill, companion, comp);
+        // 觸發聖光洗禮護盾效果
+        applyHealShieldPower(skill, comp);
       });
       
       pushBattleLog(`總共回復 ${totalHeal} HP！`);
@@ -16704,7 +17317,13 @@ function performEnemyBasicAttackDirectly(enemy, target, enemyIndex) {
         battle.tauntTarget = null;
       }
     }
-    
+
+    // 鐵壁之心被動：受傷減免
+    const targetSpecEffects = getSpecPassiveEffects(target);
+    if (targetSpecEffects.damageTakenReduction > 0) {
+      finalDamage = Math.round(finalDamage * (1 - targetSpecEffects.damageTakenReduction));
+    }
+
     // 先扣除護盾
     ({ finalDamage } = absorbShield(target, finalDamage, '護盾'));
 
@@ -16758,7 +17377,13 @@ function performEnemyBasicAttackDirectly(enemy, target, enemyIndex) {
         battle.tauntTarget = null;
       }
     }
-    
+
+    // 鐵壁之心被動：受傷減免
+    const compSpecEffects = getSpecPassiveEffects(target);
+    if (compSpecEffects.damageTakenReduction > 0) {
+      finalDamage = Math.round(finalDamage * (1 - compSpecEffects.damageTakenReduction));
+    }
+
     // 先扣除護盾
     ({ finalDamage } = absorbShield(target, finalDamage, '護盾'));
 
@@ -16824,17 +17449,24 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
         // 先扣除護盾
         ({ finalDamage } = absorbShield(state.hero, finalDamage, '→ 勇者'));
 
+        // 魔法反彈檢查（AOE勇者）
+        if (skill.flow === 'magic' && finalDamage > 0 && battle.heroBuffs && battle.heroBuffs.magicReflect) {
+          const reflectedDamage = Math.max(1, Math.round(finalDamage * battle.heroBuffs.magicReflect.reflectRatio));
+          enemy.stats.hp = Math.max(0, enemy.stats.hp - reflectedDamage);
+          pushBattleLog(`→ 魔法反彈！${enemy.name}受到 ${reflectedDamage} 反射傷害！`);
+        }
+
         const oldHp = state.hero.stats.hp;
         state.hero.stats.hp = Math.max(0, state.hero.stats.hp - finalDamage);
         totalDamage += finalDamage;
         const critMsg = isCrit ? '（會心一擊！）' : '';
         pushBattleLog(`→ 對勇者造成 ${finalDamage > 0 ? finalDamage : 0} 傷害${critMsg}`);
-        
+
         // 觸發被攻擊時的被動技能（守護意志等）
         if (finalDamage > 0) {
           triggerOnHitPassiveEffects(state.hero, finalDamage);
         }
-        
+
         if (state.hero.stats.hp <= 0) {
           pushBattleLog(`→ 勇者 被擊倒！`);
           // 記錄傷害信息（用於死亡統計）
@@ -16847,7 +17479,7 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
           };
         }
       }
-      
+
       // 對所有同伴造成傷害
       const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
       activeCompanions.forEach((companion) => {
@@ -16866,22 +17498,32 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
         // 先扣除護盾
         ({ finalDamage } = absorbShield(companion, finalDamage, `→ ${companion.name}`));
 
+        // 魔法反彈檢查（AOE同伴）
+        if (skill.flow === 'magic' && finalDamage > 0) {
+          const companionIndex = state.companions ? state.companions.indexOf(companion) : -1;
+          if (companionIndex >= 0 && battle.companionBuffs[companionIndex] && battle.companionBuffs[companionIndex].magicReflect) {
+            const reflectedDamage = Math.max(1, Math.round(finalDamage * battle.companionBuffs[companionIndex].magicReflect.reflectRatio));
+            enemy.stats.hp = Math.max(0, enemy.stats.hp - reflectedDamage);
+            pushBattleLog(`→ 魔法反彈！${enemy.name}受到 ${reflectedDamage} 反射傷害！`);
+          }
+        }
+
         const oldHp = companion.stats.hp;
         companion.stats.hp = Math.max(0, companion.stats.hp - finalDamage);
         totalDamage += finalDamage;
         const critMsg = isCrit ? '（會心一擊！）' : '';
         pushBattleLog(`→ 對${companion.name}造成 ${finalDamage} 傷害${critMsg}`);
-        
+
         // 觸發被攻擊時的被動技能（守護意志等）
         if (finalDamage > 0) {
           triggerOnHitPassiveEffects(companion, finalDamage);
         }
-        
+
         if (companion.stats.hp <= 0) {
           pushBattleLog(`→ ${companion.name} 被擊倒！`);
         }
       });
-      
+
       // 顯示總傷害
       if (totalDamage > 0) {
         pushBattleLog(`總共造成 ${totalDamage} 傷害！`);
@@ -16918,18 +17560,36 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
 
         ({ finalDamage } = absorbShield(target, finalDamage, '護盾'));
       }
-      
+
+      // 魔法反彈檢查
+      if (skill.flow === 'magic' && finalDamage > 0) {
+        let reflect = null;
+        if (target === state.hero) {
+          reflect = battle.heroBuffs ? battle.heroBuffs.magicReflect : null;
+        } else {
+          const companionIndex = state.companions ? state.companions.indexOf(target) : -1;
+          if (companionIndex >= 0 && battle.companionBuffs[companionIndex]) {
+            reflect = battle.companionBuffs[companionIndex].magicReflect;
+          }
+        }
+        if (reflect) {
+          const reflectedDamage = Math.max(1, Math.round(finalDamage * reflect.reflectRatio));
+          enemy.stats.hp = Math.max(0, enemy.stats.hp - reflectedDamage);
+          pushBattleLog(`→ 魔法反彈！${enemy.name}受到 ${reflectedDamage} 反射傷害！`);
+        }
+      }
+
       target.stats.hp = Math.max(0, target.stats.hp - finalDamage);
       const critMsg = isCrit ? '（會心一擊！）' : '';
       const activeCompanion = getActiveCompanion();
       const targetName = target === state.hero ? '勇者' : (target === activeCompanion ? target.name : target.name);
       pushBattleLog(`${enemy.name} 施放「${skill.name}」，對${targetName}造成 ${finalDamage} 傷害！${critMsg}`);
-      
+
       // 觸發被攻擊時的被動技能（守護意志等）
       if (finalDamage > 0) {
         triggerOnHitPassiveEffects(target, finalDamage);
       }
-      
+
       // 記錄傷害信息（用於死亡統計）
       if (target === state.hero && state.hero.stats.hp <= 0) {
         state.ui.deathInfo = {
@@ -17616,6 +18276,14 @@ function enemyAct() {
               const { damage, isCrit } = calculateSkillDamage(skill, enemy, hero);
               // Bug fix: 敵人 AOE 攻擊也要檢查勇者護盾
               const { finalDamage } = absorbShield(hero, damage, '→ 勇者', pushLog);
+
+              // 魔法反彈檢查（enemyAct AOE勇者）
+              if (skill.flow === 'magic' && finalDamage > 0 && battle.heroBuffs && battle.heroBuffs.magicReflect) {
+                const reflectedDamage = Math.max(1, Math.round(finalDamage * battle.heroBuffs.magicReflect.reflectRatio));
+                enemy.stats.hp = Math.max(0, enemy.stats.hp - reflectedDamage);
+                pushLog(`→ 魔法反彈！${enemy.name}受到 ${reflectedDamage} 反射傷害！`);
+              }
+
               hero.stats.hp = Math.max(0, hero.stats.hp - finalDamage);
               totalDamage += finalDamage;
               const critMsg = isCrit ? '（會心一擊！）' : '';
@@ -17639,6 +18307,16 @@ function enemyAct() {
               const { damage, isCrit } = calculateSkillDamage(skill, enemy, companion);
               const { finalDamage } = absorbShield(companion, damage, `→ ${companion.name}`, pushLog);
 
+              // 魔法反彈檢查（enemyAct AOE同伴）
+              if (skill.flow === 'magic' && finalDamage > 0) {
+                const companionIndex = state.companions ? state.companions.indexOf(companion) : -1;
+                if (companionIndex >= 0 && battle.companionBuffs[companionIndex] && battle.companionBuffs[companionIndex].magicReflect) {
+                  const reflectedDamage = Math.max(1, Math.round(finalDamage * battle.companionBuffs[companionIndex].magicReflect.reflectRatio));
+                  enemy.stats.hp = Math.max(0, enemy.stats.hp - reflectedDamage);
+                  pushLog(`→ 魔法反彈！${enemy.name}受到 ${reflectedDamage} 反射傷害！`);
+                }
+              }
+
               companion.stats.hp = Math.max(0, companion.stats.hp - finalDamage);
               totalDamage += finalDamage;
               const critMsg = isCrit ? '（會心一擊！）' : '';
@@ -17653,7 +18331,7 @@ function enemyAct() {
                 pushLog(`→ ${companion.name} 被擊倒！`);
               }
             });
-            
+
             // 顯示總傷害
             if (totalDamage > 0) {
               pushLog(`總共造成 ${totalDamage} 傷害！`);
@@ -17662,7 +18340,14 @@ function enemyAct() {
             // 單體攻擊
             const { damage, isCrit } = calculateSkillDamage(skill, enemy, hero);
             let { finalDamage } = absorbShield(hero, damage, '護盾', pushLog);
-            
+
+            // 魔法反彈檢查（enemyAct 單體）
+            if (skill.flow === 'magic' && finalDamage > 0 && battle.heroBuffs && battle.heroBuffs.magicReflect) {
+              const reflectedDamage = Math.max(1, Math.round(finalDamage * battle.heroBuffs.magicReflect.reflectRatio));
+              enemy.stats.hp = Math.max(0, enemy.stats.hp - reflectedDamage);
+              pushLog(`→ 魔法反彈！${enemy.name}受到 ${reflectedDamage} 反射傷害！`);
+            }
+
             hero.stats.hp = Math.max(0, hero.stats.hp - finalDamage);
             const critMsg = isCrit ? '（會心一擊！）' : '';
             pushLog(`${enemy.name} 施放「${skill.name}」，造成 ${finalDamage > 0 ? finalDamage : 0} 傷害！${critMsg}`);
@@ -20976,6 +21661,36 @@ function levelUpCompanion(companion, levelsGained) {
       companion.attributes[attr.id] = (companion.attributes[attr.id] || 0) + randomGain;
     });
     
+    // Lv15 流派分歧
+    if (currentLevel === 15 && !companion.specialization) {
+      const specs = COMPANION_SPECIALIZATIONS ? COMPANION_SPECIALIZATIONS[companion.companionTypeId] : null;
+      if (specs && specs.length > 0) {
+        skillSelections.push({
+          level: 15,
+          type: 'specialization',
+          options: specs,
+          selected: false,
+        });
+      }
+    }
+
+    // Lv25, Lv35 專屬技能自動升級
+    if ((currentLevel === 25 || currentLevel === 35) && companion.specialization) {
+      const specs = COMPANION_SPECIALIZATIONS ? COMPANION_SPECIALIZATIONS[companion.companionTypeId] : null;
+      const spec = specs ? specs.find(s => s.id === companion.specialization) : null;
+      if (spec) {
+        const activeChain = SKILL_CHAINS.find(c => c.id === spec.activeChainId);
+        if (activeChain) {
+          const targetTier = currentLevel === 25 ? 2 : 3;
+          const targetStep = activeChain.steps.find(s => s.tier === targetTier);
+          if (targetStep) {
+            const fullSkill = { ...targetStep, flow: activeChain.flow, chainId: activeChain.id, aoe: activeChain.aoe || false };
+            learnCompanionSkill(companion, fullSkill);
+          }
+        }
+      }
+    }
+
     // 每三級獲得一個技能（改為手動選擇，本職業技能）
     if (currentLevel % 3 === 0 && currentLevel >= 3) {
     const skillOptions = rollCompanionSkillOptions(companion);
