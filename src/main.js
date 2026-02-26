@@ -8753,28 +8753,28 @@ function performSkill(skillId) {
           }
         }
         
-        // 酸性箭：造成防守值減少效果（兩回合，減少1/3防守值）
-        if (skill.id && skill.id.startsWith('acid_arrow_') && skill.defenseDownDuration && skill.defenseDownRatio) {
+        // 防守值減少效果（酸性箭、破甲斬等）
+        if (skill.defenseDownDuration && skill.defenseDownRatio) {
           // 初始化 enemyDebuffs
           if (!battle.enemyDebuffs) {
             battle.enemyDebuffs = {};
           }
-          
+
           // 設置防守值減少狀態（如果已經有防守值減少狀態，重置持續時間）
           if (!battle.enemyDebuffs[targetIndex]) {
             battle.enemyDebuffs[targetIndex] = {};
           }
-          
+
           const hadDefenseDown = battle.enemyDebuffs[targetIndex].defenseDown ? true : false;
           battle.enemyDebuffs[targetIndex].defenseDown = {
-            duration: skill.defenseDownDuration, // 持續2回合
-            ratio: skill.defenseDownRatio // 減少1/3防守值
+            duration: skill.defenseDownDuration,
+            ratio: skill.defenseDownRatio
           };
-          
+
           if (hadDefenseDown) {
             pushBattleLog(`→ ${target.name}的防守值減少效果被刷新！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           } else {
-            pushBattleLog(`→ ${target.name}的防守值被腐蝕減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
+            pushBattleLog(`→ ${target.name}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
         
@@ -14318,28 +14318,28 @@ function performSkillDirectly(skillId) {
           }
         }
         
-        // 酸性箭：造成防守值減少效果（兩回合，減少1/3防守值）
-        if (skill.id && skill.id.startsWith('acid_arrow_') && skill.defenseDownDuration && skill.defenseDownRatio) {
+        // 防守值減少效果（酸性箭、破甲斬等）
+        if (skill.defenseDownDuration && skill.defenseDownRatio) {
           // 初始化 enemyDebuffs
           if (!battle.enemyDebuffs) {
             battle.enemyDebuffs = {};
           }
-          
+
           // 設置防守值減少狀態（如果已經有防守值減少狀態，重置持續時間）
           if (!battle.enemyDebuffs[targetIndex]) {
             battle.enemyDebuffs[targetIndex] = {};
           }
-          
+
           const hadDefenseDown = battle.enemyDebuffs[targetIndex].defenseDown ? true : false;
           battle.enemyDebuffs[targetIndex].defenseDown = {
-            duration: skill.defenseDownDuration, // 持續2回合
-            ratio: skill.defenseDownRatio // 減少1/3防守值
+            duration: skill.defenseDownDuration,
+            ratio: skill.defenseDownRatio
           };
-          
+
           if (hadDefenseDown) {
             pushBattleLog(`→ ${targetEnemy.name}的防守值減少效果被刷新！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           } else {
-            pushBattleLog(`→ ${targetEnemy.name}的防守值被腐蝕減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
+            pushBattleLog(`→ ${targetEnemy.name}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
         
@@ -15642,28 +15642,28 @@ function performCompanionSkillDirectly(companion, skill, target) {
           }
         }
         
-        // 酸性箭：造成防守值減少效果（兩回合，減少1/3防守值）
-        if (skill.id && skill.id.startsWith('acid_arrow_') && skill.defenseDownDuration && skill.defenseDownRatio) {
+        // 防守值減少效果（酸性箭、破甲斬等）
+        if (skill.defenseDownDuration && skill.defenseDownRatio) {
           // 初始化 enemyDebuffs
           if (!battle.enemyDebuffs) {
             battle.enemyDebuffs = {};
           }
-          
+
           // 設置防守值減少狀態（如果已經有防守值減少狀態，重置持續時間）
           if (!battle.enemyDebuffs[targetIndex]) {
             battle.enemyDebuffs[targetIndex] = {};
           }
-          
+
           const hadDefenseDown = battle.enemyDebuffs[targetIndex].defenseDown ? true : false;
           battle.enemyDebuffs[targetIndex].defenseDown = {
-            duration: skill.defenseDownDuration, // 持續2回合
-            ratio: skill.defenseDownRatio // 減少1/3防守值
+            duration: skill.defenseDownDuration,
+            ratio: skill.defenseDownRatio
           };
-          
+
           if (hadDefenseDown) {
             pushBattleLog(`→ ${targetEnemy.name}的防守值減少效果被刷新！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           } else {
-            pushBattleLog(`→ ${targetEnemy.name}的防守值被腐蝕減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
+            pushBattleLog(`→ ${targetEnemy.name}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
         
@@ -15878,28 +15878,28 @@ function performCompanionSkillDirectly(companion, skill, target) {
           }
         }
         
-        // 酸性箭：造成防守值減少效果（兩回合，減少1/3防守值）
-        if (skill.id && skill.id.startsWith('acid_arrow_') && skill.defenseDownDuration && skill.defenseDownRatio) {
+        // 防守值減少效果（酸性箭、破甲斬等）
+        if (skill.defenseDownDuration && skill.defenseDownRatio) {
           // 初始化 enemyDebuffs
           if (!battle.enemyDebuffs) {
             battle.enemyDebuffs = {};
           }
-          
+
           // 設置防守值減少狀態（如果已經有防守值減少狀態，重置持續時間）
           if (!battle.enemyDebuffs[targetIndex]) {
             battle.enemyDebuffs[targetIndex] = {};
           }
-          
+
           const hadDefenseDown = battle.enemyDebuffs[targetIndex].defenseDown ? true : false;
           battle.enemyDebuffs[targetIndex].defenseDown = {
-            duration: skill.defenseDownDuration, // 持續2回合
-            ratio: skill.defenseDownRatio // 減少1/3防守值
+            duration: skill.defenseDownDuration,
+            ratio: skill.defenseDownRatio
           };
-          
+
           if (hadDefenseDown) {
             pushBattleLog(`→ ${targetEnemy.name}的防守值減少效果被刷新！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           } else {
-            pushBattleLog(`→ ${targetEnemy.name}的防守值被腐蝕減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
+            pushBattleLog(`→ ${targetEnemy.name}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
         
@@ -16935,15 +16935,15 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
       }
     }
     
-    // 酸性箭：造成防守值減少效果
-    if (skill.id && skill.id.startsWith('acid_arrow_') && skill.defenseDownDuration && skill.defenseDownRatio) {
+    // 防守值減少效果（酸性箭、破甲斬等）
+    if (skill.defenseDownDuration && skill.defenseDownRatio) {
       if (!battle.friendlyDebuffs) {
         battle.friendlyDebuffs = { hero: {}, companions: {} };
       }
-      
+
       const isHero = target === state.hero;
       const targetName = isHero ? '勇者' : target.name;
-      
+
       if (isHero) {
         if (!battle.friendlyDebuffs.hero) {
           battle.friendlyDebuffs.hero = {};
@@ -16953,11 +16953,11 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
           duration: skill.defenseDownDuration,
           ratio: skill.defenseDownRatio
         };
-        
+
         if (hadDefenseDown) {
           pushBattleLog(`→ ${targetName}的防守值減少效果被刷新！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
         } else {
-          pushBattleLog(`→ ${targetName}的防守值被腐蝕減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
+          pushBattleLog(`→ ${targetName}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
         }
       } else {
         const companionIndex = state.companions.indexOf(target);
@@ -16974,7 +16974,7 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
           if (hadDefenseDown) {
             pushBattleLog(`→ ${targetName}的防守值減少效果被刷新！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           } else {
-            pushBattleLog(`→ ${targetName}的防守值被腐蝕減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
+            pushBattleLog(`→ ${targetName}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
       }
@@ -17550,25 +17550,25 @@ function enemyAct() {
               }
             }
             
-            // 酸性箭：造成防守值減少效果
-            if (skill.id && skill.id.startsWith('acid_arrow_') && skill.defenseDownDuration && skill.defenseDownRatio) {
+            // 防守值減少效果（酸性箭、破甲斬等）
+            if (skill.defenseDownDuration && skill.defenseDownRatio) {
               if (!battle.friendlyDebuffs) {
                 battle.friendlyDebuffs = { hero: {}, companions: {} };
               }
               if (!battle.friendlyDebuffs.hero) {
                 battle.friendlyDebuffs.hero = {};
               }
-              
+
               const hadDefenseDown = battle.friendlyDebuffs.hero.defenseDown ? true : false;
               battle.friendlyDebuffs.hero.defenseDown = {
                 duration: skill.defenseDownDuration,
                 ratio: skill.defenseDownRatio
               };
-              
+
               if (hadDefenseDown) {
                 pushLog(`→ 勇者的防守值減少效果被刷新！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
               } else {
-                pushLog(`→ 勇者的防守值被腐蝕減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
+                pushLog(`→ 勇者的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
               }
             }
           }

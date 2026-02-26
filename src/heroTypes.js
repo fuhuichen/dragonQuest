@@ -6,8 +6,8 @@ window.GameData.HERO_TYPES = {
     name: '攻擊型',
     description: '專注於物理輸出與速度',
     initialHpBonus: 0.7,
-    initialMpBonus: 0.2,
-    initialSkills: ['slash_1'], // 冰球
+    initialMpBonus: 0.5,
+    initialSkills: ['slash_1', 'rapid_strike_1'], // 斬擊、多重斬擊
     initialBonus: {
       attack: 6,
       agility: 4,
@@ -16,7 +16,7 @@ window.GameData.HERO_TYPES = {
     },
     levelUpBonus: {
       attack: 3.3,
-      agility: 0.5,
+      agility: 1.0,
       defense: 1.5,
       vitality: 1.2,
     },
@@ -125,14 +125,14 @@ window.GameData.COMPANION_TYPES = {
       agility: 2,
     },
     initialHpBonus: 0.8, // 0.5 * 10 = 5 HP
-    initialMpBonus: 0,
-    initialSkills: ['slash_1'], // 斬擊
+    initialMpBonus: 0.4,
+    initialSkills: ['slash_1', 'rapid_strike_1'], // 斬擊、多重斬擊
     levelUpBonus: {
       attack: 6.0,
       agility: 1.8,
       vitality: 2.9,
       defense: 3.0,
-      magic: 0.5,
+      magic: 1.0,
     },
   },
   knight: {
