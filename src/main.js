@@ -3249,7 +3249,12 @@ function renderBattleDialog() {
             const hasDefenseDown = battle.enemyDebuffs && battle.enemyDebuffs[enemyIndex] && battle.enemyDebuffs[enemyIndex].defenseDown;
             const defenseDownDuration = hasDefenseDown ? battle.enemyDebuffs[enemyIndex].defenseDown.duration : 0;
             const defenseDownStatus = hasDefenseDown ? `<p style="color: #8b0000; font-weight: bold;">減防: ${defenseDownDuration}回合</p>` : '';
-            
+
+            // 檢查是否有破甲（受傷增加）狀態
+            const hasVulnerable = battle.enemyDebuffs && battle.enemyDebuffs[enemyIndex] && battle.enemyDebuffs[enemyIndex].vulnerable;
+            const vulnerableDuration = hasVulnerable ? battle.enemyDebuffs[enemyIndex].vulnerable.duration : 0;
+            const vulnerableStatus = hasVulnerable ? `<p style="color: #ff4500; font-weight: bold;">破甲: ${vulnerableDuration}回合</p>` : '';
+
             // 檢查是否有攻擊力減少狀態
             const hasAttackDown = battle.enemyDebuffs && battle.enemyDebuffs[enemyIndex] && battle.enemyDebuffs[enemyIndex].attackDown;
             const attackDownDuration = hasAttackDown ? battle.enemyDebuffs[enemyIndex].attackDown.duration : 0;
@@ -3285,6 +3290,7 @@ function renderBattleDialog() {
                   ${poisonStatus}
                   ${slowStatus}
                   ${defenseDownStatus}
+                  ${vulnerableStatus}
                   ${attackDownStatus}
                   ${canSelect ? '<p class="select-hint">點擊選擇</p>' : ''}
                 </div>
@@ -8777,7 +8783,29 @@ function performSkill(skillId) {
             pushBattleLog(`→ ${target.name}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
-        
+
+        // 破甲斬：使目標受到的傷害增加
+        if (skill.vulnerableDuration && skill.vulnerableRatio) {
+          if (!battle.enemyDebuffs) {
+            battle.enemyDebuffs = {};
+          }
+          if (!battle.enemyDebuffs[targetIndex]) {
+            battle.enemyDebuffs[targetIndex] = {};
+          }
+
+          const hadVulnerable = battle.enemyDebuffs[targetIndex].vulnerable ? true : false;
+          battle.enemyDebuffs[targetIndex].vulnerable = {
+            duration: skill.vulnerableDuration,
+            ratio: skill.vulnerableRatio
+          };
+
+          if (hadVulnerable) {
+            pushBattleLog(`→ ${target.name}的破甲效果被刷新！將在接下來的${skill.vulnerableDuration}回合中，受到的所有傷害增加 ${Math.round(skill.vulnerableRatio * 100)}%。`);
+          } else {
+            pushBattleLog(`→ ${target.name}的防禦被破壞！將在接下來的${skill.vulnerableDuration}回合中，受到的所有傷害增加 ${Math.round(skill.vulnerableRatio * 100)}%。`);
+          }
+        }
+
         // 腎擊：降低敵人攻擊力1/3（持續2回合）
         if (skill.id && skill.id.startsWith('kidney_strike_') && skill.attackDownDuration && skill.attackDownRatio) {
           // 初始化 enemyDebuffs
@@ -11007,8 +11035,17 @@ function calculatePhysicalDamage(power = 0, target) {
   }
   
   let damage = (attack + equipmentAttack + skillBonus) - defense;
+
+  // 破甲效果：目標受到的傷害增加
+  if (battle && battle.enemyDebuffs) {
+    const enemyIndex = battle.enemies.indexOf(target);
+    if (enemyIndex >= 0 && battle.enemyDebuffs[enemyIndex] && battle.enemyDebuffs[enemyIndex].vulnerable) {
+      damage = Math.round(damage * (1 + battle.enemyDebuffs[enemyIndex].vulnerable.ratio));
+    }
+  }
+
   damage = Math.max(1, Math.round(damage));
-  
+
   // 檢查會心一擊（普通攻擊沒有技能，所以傳null）
   const isCrit = checkCrit(hero, null);
   if (isCrit) {
@@ -11035,8 +11072,20 @@ function calculateSkillDamage(skill, attacker, target) {
     baseDamage = skillPower;
     defense = 0; // 聖擊不受防禦減傷
     let damage = baseDamage;
+
+    // 破甲效果：目標受到的傷害增加
+    {
+      const battle = state.ui.battle;
+      if (battle && battle.enemyDebuffs) {
+        const enemyIndex = battle.enemies.indexOf(target);
+        if (enemyIndex >= 0 && battle.enemyDebuffs[enemyIndex] && battle.enemyDebuffs[enemyIndex].vulnerable) {
+          damage = Math.round(damage * (1 + battle.enemyDebuffs[enemyIndex].vulnerable.ratio));
+        }
+      }
+    }
+
     damage = Math.max(1, Math.round(damage));
-    
+
     // 聖擊不觸發會心一擊
     return { damage, isCrit: false };
   }
@@ -11754,10 +11803,22 @@ function calculateSkillDamage(skill, attacker, target) {
         if (debuffs.slow) debuffCount++;
         if (debuffs.defenseDown) debuffCount++;
         if (debuffs.attackDown) debuffCount++;
+        if (debuffs.vulnerable) debuffCount++;
         if (debuffCount > 0) {
           const bonus = 1 + debuffCount * skill.debuffDamageBonus;
           damage = Math.round(damage * bonus);
         }
+      }
+    }
+  }
+
+  // 破甲效果：目標受到的傷害增加
+  {
+    const _battle = state.ui.battle;
+    if (_battle && _battle.enemyDebuffs) {
+      const enemyIndex = _battle.enemies.indexOf(target);
+      if (enemyIndex >= 0 && _battle.enemyDebuffs[enemyIndex] && _battle.enemyDebuffs[enemyIndex].vulnerable) {
+        damage = Math.round(damage * (1 + _battle.enemyDebuffs[enemyIndex].vulnerable.ratio));
       }
     }
   }
@@ -11838,8 +11899,20 @@ function calculateSkillDamage(skill, attacker, target) {
       // 其他技能類型需要減去防禦（每一下都要減去防守力）
       damage = baseDamage - defense;
     }
+
+    // 破甲效果：目標受到的傷害增加
+    {
+      const _battle = state.ui.battle;
+      if (_battle && _battle.enemyDebuffs) {
+        const enemyIndex = _battle.enemies.indexOf(target);
+        if (enemyIndex >= 0 && _battle.enemyDebuffs[enemyIndex] && _battle.enemyDebuffs[enemyIndex].vulnerable) {
+          damage = Math.round(damage * (1 + _battle.enemyDebuffs[enemyIndex].vulnerable.ratio));
+        }
+      }
+    }
+
     damage = Math.max(1, Math.round(damage));
-    
+
     // 每一下都獨立判斷會心一擊
     if (skill.flow === 'magic') {
       // 魔法技能：先檢查技能本身的 critChance，然後加上被動技能的魔法暴擊率
@@ -12336,6 +12409,23 @@ function executeActionQueue() {
           }
         }
         
+        // 處理破甲（受傷增加）狀態（減少持續時間）
+        if (battle.enemyDebuffs[enemyIndex] && battle.enemyDebuffs[enemyIndex].vulnerable) {
+          const vulnerable = battle.enemyDebuffs[enemyIndex].vulnerable;
+
+          // 減少持續時間
+          vulnerable.duration -= 1;
+
+          // 如果持續時間為0，移除破甲狀態
+          if (vulnerable.duration <= 0) {
+            delete battle.enemyDebuffs[enemyIndex].vulnerable;
+            if (Object.keys(battle.enemyDebuffs[enemyIndex]).length === 0) {
+              delete battle.enemyDebuffs[enemyIndex];
+            }
+            pushBattleLog(`→ ${enemy.name}的破甲效果已解除。`);
+          }
+        }
+
         // 處理攻擊力減少狀態（減少持續時間，但不造成傷害）
         if (battle.enemyDebuffs[enemyIndex] && battle.enemyDebuffs[enemyIndex].attackDown) {
           const attackDown = battle.enemyDebuffs[enemyIndex].attackDown;
@@ -14342,7 +14432,29 @@ function performSkillDirectly(skillId) {
             pushBattleLog(`→ ${targetEnemy.name}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
-        
+
+        // 破甲斬：使目標受到的傷害增加
+        if (skill.vulnerableDuration && skill.vulnerableRatio) {
+          if (!battle.enemyDebuffs) {
+            battle.enemyDebuffs = {};
+          }
+          if (!battle.enemyDebuffs[targetIndex]) {
+            battle.enemyDebuffs[targetIndex] = {};
+          }
+
+          const hadVulnerable = battle.enemyDebuffs[targetIndex].vulnerable ? true : false;
+          battle.enemyDebuffs[targetIndex].vulnerable = {
+            duration: skill.vulnerableDuration,
+            ratio: skill.vulnerableRatio
+          };
+
+          if (hadVulnerable) {
+            pushBattleLog(`→ ${targetEnemy.name}的破甲效果被刷新！將在接下來的${skill.vulnerableDuration}回合中，受到的所有傷害增加 ${Math.round(skill.vulnerableRatio * 100)}%。`);
+          } else {
+            pushBattleLog(`→ ${targetEnemy.name}的防禦被破壞！將在接下來的${skill.vulnerableDuration}回合中，受到的所有傷害增加 ${Math.round(skill.vulnerableRatio * 100)}%。`);
+          }
+        }
+
         // 冰凍魔法：造成減速效果（兩回合，減少1/3速度）
         if (skill.id && skill.id.startsWith('iceball_') && skill.slowDuration && skill.slowRatio) {
           // 初始化 enemyDebuffs
@@ -15666,7 +15778,29 @@ function performCompanionSkillDirectly(companion, skill, target) {
             pushBattleLog(`→ ${targetEnemy.name}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
-        
+
+        // 破甲斬：使目標受到的傷害增加
+        if (skill.vulnerableDuration && skill.vulnerableRatio) {
+          if (!battle.enemyDebuffs) {
+            battle.enemyDebuffs = {};
+          }
+          if (!battle.enemyDebuffs[targetIndex]) {
+            battle.enemyDebuffs[targetIndex] = {};
+          }
+
+          const hadVulnerable = battle.enemyDebuffs[targetIndex].vulnerable ? true : false;
+          battle.enemyDebuffs[targetIndex].vulnerable = {
+            duration: skill.vulnerableDuration,
+            ratio: skill.vulnerableRatio
+          };
+
+          if (hadVulnerable) {
+            pushBattleLog(`→ ${targetEnemy.name}的破甲效果被刷新！將在接下來的${skill.vulnerableDuration}回合中，受到的所有傷害增加 ${Math.round(skill.vulnerableRatio * 100)}%。`);
+          } else {
+            pushBattleLog(`→ ${targetEnemy.name}的防禦被破壞！將在接下來的${skill.vulnerableDuration}回合中，受到的所有傷害增加 ${Math.round(skill.vulnerableRatio * 100)}%。`);
+          }
+        }
+
         // 檢查是否偷取（偷襲技能）- 同伴也可以使用，50%機率偷取裝備，50%機率偷取金幣
         if (skill.stealGold && skill.stealGoldChance && skill.stealGoldPercent && targetEnemy.goldDrop) {
           // 檢查該怪物是否已被偷過
@@ -15902,7 +16036,29 @@ function performCompanionSkillDirectly(companion, skill, target) {
             pushBattleLog(`→ ${targetEnemy.name}的防守值減少！將在接下來的${skill.defenseDownDuration}回合中，防守值減少 ${Math.round(skill.defenseDownRatio * 100)}%。`);
           }
         }
-        
+
+        // 破甲斬：使目標受到的傷害增加
+        if (skill.vulnerableDuration && skill.vulnerableRatio) {
+          if (!battle.enemyDebuffs) {
+            battle.enemyDebuffs = {};
+          }
+          if (!battle.enemyDebuffs[targetIndex]) {
+            battle.enemyDebuffs[targetIndex] = {};
+          }
+
+          const hadVulnerable = battle.enemyDebuffs[targetIndex].vulnerable ? true : false;
+          battle.enemyDebuffs[targetIndex].vulnerable = {
+            duration: skill.vulnerableDuration,
+            ratio: skill.vulnerableRatio
+          };
+
+          if (hadVulnerable) {
+            pushBattleLog(`→ ${targetEnemy.name}的破甲效果被刷新！將在接下來的${skill.vulnerableDuration}回合中，受到的所有傷害增加 ${Math.round(skill.vulnerableRatio * 100)}%。`);
+          } else {
+            pushBattleLog(`→ ${targetEnemy.name}的防禦被破壞！將在接下來的${skill.vulnerableDuration}回合中，受到的所有傷害增加 ${Math.round(skill.vulnerableRatio * 100)}%。`);
+          }
+        }
+
         // 刺客之路：中毒+降低攻擊力
         if (skill.weaponmasterPath === 'assassin' && skill.poisonRatio && skill.attackDownRatio && skill.debuffDuration) {
           // 初始化 enemyDebuffs
