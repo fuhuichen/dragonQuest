@@ -1,9 +1,9 @@
 // 遊戲配置參數
 window.GameData = window.GameData || {};
 window.GameData.GAME_CONFIG = {
-  initialCompanionCount: 3, // 一開始勇者的同伴數量
+  initialCompanionCount: 0, // 一開始勇者的同伴數量
   maxCompanionCount: 3, // 最大同伴數量上限
-  defaultTargetLevel: 40, // 預設目標等級
+  defaultTargetLevel: 1, // 預設目標等級
   companionAdvancementLevel: 40, // 伙伴可以進階職業的等級
   startStage:1, // 起始階段（1-6）
   startNodeIndex:0, // 起始節點索引（0-19）
@@ -45,7 +45,7 @@ window.GameData.GAME_CONFIG = {
   },
   // 測試模式配置
   testMode: false, // 測試模式開關
-  testModeCompanionLevel: 30, // 測試模式下同伴加入時的等級
+  testModeCompanionLevel: 0, // 測試模式下同伴加入時的等級
   testModeAllowAdvancement: true, // 測試模式下是否允許職業進階
 };
 
