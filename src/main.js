@@ -7756,11 +7756,12 @@ function useAuraSkill(caster, skill, casterName, isHero) {
     pushBattleLog(`「${oldAuraName}」被「${skill.name}」取代。`);
   }
 
-  // 設置新光環
+  // 設置新光環（光環大師：所有光環回合數+1）
+  const auraDuration = (skill.duration || 3) + (specEffects.auraDurationBonus || 0);
   battle.aura = {
     type: auraType,
     caster: caster,
-    duration: skill.duration || 3,
+    duration: auraDuration,
     value: auraValue,
     skillName: skill.name,
   };
@@ -11030,6 +11031,7 @@ function getSpecPassiveEffects(character) {
     turnAttackStackMax: 0,    // 劍意凝聚：攻擊累加上限
     auraValueMultiplier: 0,   // 光環大師：光環效果值倍率
     auraFreeCast: false,      // 光環大師：光環免費施放
+    auraDurationBonus: 0,     // 光環大師：光環回合數加成
     damageTakenReduction: 0,  // 鐵壁之心：受傷減免
     healBoost: 0,             // 聖光恩澤：治療效果加成
     magicDamageBoost: 0,      // 魔力增幅：魔法傷害加成
@@ -11056,6 +11058,7 @@ function getSpecPassiveEffects(character) {
     if (skill.turnAttackStackMax !== undefined) effects.turnAttackStackMax = skill.turnAttackStackMax;
     if (skill.auraValueMultiplier !== undefined) effects.auraValueMultiplier = skill.auraValueMultiplier;
     if (skill.auraFreeCast !== undefined) effects.auraFreeCast = skill.auraFreeCast;
+    if (skill.auraDurationBonus !== undefined) effects.auraDurationBonus = skill.auraDurationBonus;
     if (skill.damageTakenReduction !== undefined) effects.damageTakenReduction = skill.damageTakenReduction;
     if (skill.healBoost !== undefined) effects.healBoost = skill.healBoost;
     if (skill.magicDamageBoost !== undefined) effects.magicDamageBoost += skill.magicDamageBoost;
