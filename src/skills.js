@@ -2749,20 +2749,20 @@ const SKILL_CHAINS = [
       },
     ],
   },
-  // 聖騎士特殊技能 - 復仇之道：至聖斬（主動技能）
+  // 聖騎士特殊技能 - 復仇之道：至聖斬（主動技能，全體攻擊）
   {
     flow: 'sword',
     id: 'paladin_divine_slash',
-    aoe: false,
+    aoe: true,
     steps: [
       {
         id: 'paladin_divine_slash_1',
         tier: 1,
         name: '至聖斬',
-        description: '造成體力×120% + 治療能力×120%的攻擊傷害。',
+        description: '以神聖之力揮出全體攻擊，對所有敵人造成體力×120% + 治療能力×120%的傷害。消耗 35 MP。',
         kind: 'attack',
         power: 50,
-        mpCost: 20,
+        mpCost: 35,
         requiredLevel: 999,
         critChance: 0,
         vitalityRatio: 1.2, // 體力×120%
