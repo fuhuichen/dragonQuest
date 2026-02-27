@@ -39,6 +39,25 @@ SKILL_CHAINS.forEach((chain) => {
 });
 // 被動技能已移除
 
+// 勇者爆發技：heroType → burst skill id 映射
+const HERO_BURST_SKILL_IDS = {
+  attacker: 'burst_sword_1',
+  defender: 'burst_defender_1',
+  mage: 'burst_magic_1',
+  healer: 'burst_recovery_1',
+  agile: 'burst_agility_1',
+};
+
+// 取得當前勇者的爆發技（若已學習）
+function getHeroBurstSkill() {
+  const hero = state.hero;
+  if (!hero || !hero.heroType) return null;
+  const burstId = HERO_BURST_SKILL_IDS[hero.heroType];
+  if (!burstId) return null;
+  if (!hero.skills.includes(burstId)) return null;
+  return SKILL_LOOKUP.get(burstId) || null;
+}
+
 const ITEM_LOOKUP = new Map(ITEMS.map((item) => [item.id, item]));
 
 const COMMANDS = [
@@ -584,6 +603,7 @@ function createHero(gender = 'male', heroType = null) {
     equipment,
     equipmentInventory,
     superiorEquipment,
+    burstGauge: 0, // 爆發技蓄力值 0-100（跨戰鬥保留）
   };
   
   return {
@@ -2741,6 +2761,20 @@ function getCharacterBuffs(character, isHero) {
     }
   }
 
+  // 勇者爆發技buff
+  if (isHero && battle.heroBurstBuffs) {
+    const bb = battle.heroBurstBuffs;
+    if (bb.doubleCast) {
+      buffs.push({ type: 'buff', name: '劍刃爆發（二連擊）', color: '#FFD700' });
+    }
+    if (bb.guaranteedCrit) {
+      buffs.push({ type: 'buff', name: '魔力爆發（必暴擊）', color: '#FFD700' });
+    }
+    if (bb.burstDefenderDuration > 0) {
+      buffs.push({ type: 'buff', name: `鐵壁爆發 ${bb.burstDefenderDuration}回合`, color: '#FFD700' });
+    }
+  }
+
   // 友方debuff（敵人對友方施加的）
   if (battle.friendlyDebuffs) {
     if (isHero && battle.friendlyDebuffs.hero) {
@@ -2968,16 +3002,31 @@ function renderBattleDialog() {
       </div>
     ` : '';
     
+    // 爆發技蓄力條
+    const burstSkill = getHeroBurstSkill();
+    const burstGauge = state.hero.burstGauge || 0;
+    const burstGaugeHtml = burstSkill ? `
+      <div style="margin-top: 4px;">
+        <p style="font-size: 0.8em; color: ${burstGauge >= 100 ? '#FFD700' : '#BBBBBB'}; margin: 2px 0;">
+          爆發技 ${burstGauge}%
+        </p>
+        <div style="background: #333; border-radius: 3px; height: 6px; width: 100%; overflow: hidden;">
+          <div style="background: ${burstGauge >= 100 ? 'linear-gradient(90deg, #FFD700, #FFA500)' : '#4FC3F7'}; height: 100%; width: ${burstGauge}%; transition: width 0.3s;"></div>
+        </div>
+      </div>
+    ` : '';
+
     let heroBox = `
-      <div class="battle-stat-box ${isHeroTurn ? 'active-turn' : ''}" 
+      <div class="battle-stat-box ${isHeroTurn ? 'active-turn' : ''}"
            style="${isHeroTurn ? 'border: 2px solid var(--accent);' : ''}">
         <p class="battle-stat-label">勇者 Lv ${hero.stats.level}</p>
         <p>${formatHpDisplay(hero)}</p>
         <p>MP: ${hero.stats.mp}/${hero.stats.maxMp}</p>
+        ${burstGaugeHtml}
         ${heroBuffsHtml}
       </div>
     `;
-    
+
     // 顯示所有同伴的狀態
     const activeCompanions = (state.companions || []).filter(c => c && c.stats && c.stats.hp > 0);
     let companionHtml = '';
@@ -3118,9 +3167,19 @@ function renderBattleDialog() {
           commandsToShow = COMMANDS.filter(cmd => cmd.id !== 'item');
         }
         
+        // 爆發技按鈕（蓄力滿時顯示金色按鈕）
+        const burstBtnSkill = isHeroTurn ? getHeroBurstSkill() : null;
+        const burstBtnHtml = (burstBtnSkill && state.hero.burstGauge >= 100 && hero.stats.hp > 0) ? `
+          <button class="battle-command-btn" data-command="burst"
+                  style="background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; font-weight: bold; border: 2px solid #FFD700; text-shadow: 0 0 4px rgba(255,215,0,0.6);">
+            ${burstBtnSkill.name}
+          </button>
+        ` : '';
+
         dom.battleCommands.innerHTML = `
           <div class="battle-stat-box">
             <p class="battle-stat-label">${isCompanionTurn ? (getActiveCompanion()?.name || '同伴') : '勇者'} 指令</p>
+            ${burstBtnHtml}
             ${commandsToShow.map(cmd => `
               <button class="battle-command-btn" data-command="${cmd.id}" ${!canControl ? 'disabled' : ''}>
                 ${cmd.label}
@@ -3131,7 +3190,7 @@ function renderBattleDialog() {
       }
     }
   }
-  
+
   // 中間：怪物資訊和選擇
   if (dom.battleEnemies) {
     const aliveEnemies = battle.enemies.filter(e => e.stats.hp > 0);
@@ -3709,7 +3768,11 @@ function renderHeroPanel() {
           <p>MP：${stats.mp}/${stats.maxMp}</p>
         </div>
         <div>
-          <p>類型：${COMPANION_TYPES[currentCompanion.companionTypeId]?.name || '未知'}</p>
+          <p>類型：${COMPANION_TYPES[currentCompanion.companionTypeId]?.name || '未知'}${currentCompanion.specialization ? (() => {
+            const specs = COMPANION_SPECIALIZATIONS ? COMPANION_SPECIALIZATIONS[currentCompanion.companionTypeId] : null;
+            const spec = specs ? specs.find(s => s.id === currentCompanion.specialization) : null;
+            return spec ? `（${spec.name}）` : '';
+          })() : ''}</p>
           ${currentCompanion.personalityId ? (() => {
             const personality = COMPANION_PERSONALITIES[currentCompanion.personalityId];
             return personality ? `<p>個性：${personality.name}（${personality.description}）</p>` : '';
@@ -7588,6 +7651,7 @@ function startBattle(option, multiplier = 1) {
     selectedEnemyIndex: null,
     turn: 'hero',
     menu: 'root',
+    heroBurstBuffs: { doubleCast: false, guaranteedCrit: false, aggroBoost: 0, damageReduction: 0, burstDefenderDuration: 0 },
     heroBuffs: { guard: 0, swordIntent: null, deathWard: false, healingEcho: 0, magicReflect: null }, // swordIntent: { attackBoost, critBoost, duration }, deathWard: 防死護盾, healingEcho: 緩慢恢復值, magicReflect: { reflectRatio, duration }
     companionBuffs: {}, // { companionIndex: { guard: 0, swordIntent: null, deathWard: false, healingEcho: 0 } }
     actionQueue: [], // 行動隊列（按敏捷排序）
@@ -8186,6 +8250,9 @@ function handleBattleCommand(command) {
         renderBattleDialog();
       }
       break;
+    case 'burst':
+      performBurstSkill();
+      break;
     case 'spectate':
       // 靈魂觀戰（正常情況下不應該出現，但為了安全起見）
       pushBattleLog('勇者以靈魂狀態觀戰...');
@@ -8195,6 +8262,93 @@ function handleBattleCommand(command) {
     default:
       break;
   }
+}
+
+// 勇者爆發技施放
+function performBurstSkill() {
+  const battle = state.ui.battle;
+  if (!battle || battle.turn !== 'hero') return;
+  const hero = state.hero;
+  if (!hero || hero.stats.hp <= 0) return;
+
+  const burstSkill = getHeroBurstSkill();
+  if (!burstSkill || state.hero.burstGauge < 100) return;
+
+  const bb = battle.heroBurstBuffs;
+  pushBattleLog(`勇者施放爆發技「${burstSkill.name}」！`);
+
+  const burstFlow = burstSkill.flow;
+
+  if (burstFlow === 'sword') {
+    // 劍刃爆發：下次技能發動兩次
+    bb.doubleCast = true;
+    pushBattleLog(`→ 下次技能將發動兩次！`);
+  } else if (burstFlow === 'defender') {
+    // 鐵壁爆發：嘲諷+30%、傷害減免20%，持續3回合
+    bb.aggroBoost = burstSkill.burstAggroBoost || 0.30;
+    bb.damageReduction = burstSkill.burstDamageReduction || 0.20;
+    bb.burstDefenderDuration = burstSkill.burstDuration || 3;
+    pushBattleLog(`→ 嘲諷率+30%、傷害減免20%，持續${bb.burstDefenderDuration}回合！`);
+  } else if (burstFlow === 'magic') {
+    // 魔力爆發：下次法術必定暴擊
+    bb.guaranteedCrit = true;
+    pushBattleLog(`→ 下次法術必定暴擊！`);
+  } else if (burstFlow === 'recovery') {
+    // 聖光爆發：全體回復至50% maxHP，復活死者至50%
+    // 回復勇者
+    const heroHealTarget = Math.floor(hero.stats.maxHp * 0.5);
+    if (hero.stats.hp < heroHealTarget) {
+      hero.stats.hp = heroHealTarget;
+      pushBattleLog(`→ 勇者HP回復至 ${heroHealTarget}！`);
+    }
+    // 回復/復活所有同伴
+    (state.companions || []).forEach(comp => {
+      if (!comp || !comp.stats) return;
+      const compHealTarget = Math.floor(comp.stats.maxHp * 0.5);
+      if (comp.stats.hp <= 0) {
+        comp.stats.hp = compHealTarget;
+        pushBattleLog(`→ ${comp.name}被復活，HP回復至 ${compHealTarget}！`);
+      } else if (comp.stats.hp < compHealTarget) {
+        comp.stats.hp = compHealTarget;
+        pushBattleLog(`→ ${comp.name}HP回復至 ${compHealTarget}！`);
+      }
+    });
+  } else if (burstFlow === 'agility') {
+    // 影速爆發：隨機攻擊8下，全部必定暴擊
+    const hitCount = burstSkill.burstHitCount || 8;
+    const aliveEnemies = battle.enemies.filter(e => e.stats.hp > 0);
+    if (aliveEnemies.length === 0) {
+      pushBattleLog(`→ 沒有可攻擊的目標！`);
+    } else {
+      const totalAttrs = getHeroTotalAttributes(hero);
+      const attack = totalAttrs.attack + getEquipmentAttack(hero);
+      let totalDamage = 0;
+      for (let i = 0; i < hitCount; i++) {
+        const currentAlive = battle.enemies.filter(e => e.stats.hp > 0);
+        if (currentAlive.length === 0) break;
+        const targetEnemy = currentAlive[Math.floor(Math.random() * currentAlive.length)];
+        const targetIndex = battle.enemies.indexOf(targetEnemy);
+        const defense = targetEnemy.attributes.defense || 0;
+        let damage = Math.max(1, Math.round(attack - defense));
+        // 必定暴擊：1.5倍傷害
+        damage = Math.round(damage * 1.5);
+        // 應用傷害
+        damage = applyDamageToEnemyUnified(targetEnemy, damage, hero);
+        totalDamage += damage;
+        pushBattleLog(`→ 第${i + 1}擊：對${targetEnemy.name}造成 ${damage} 傷害（會心一擊！）`);
+        if (targetEnemy.stats.hp <= 0) {
+          pushBattleLog(`→ ${targetEnemy.name} 被擊倒！`);
+        }
+      }
+      pushBattleLog(`→ 影速爆發合計造成 ${totalDamage} 傷害！`);
+    }
+  }
+
+  // 重置蓄力值
+  state.hero.burstGauge = 0;
+
+  // 免費行動：不呼叫 endHeroTurn()，僅刷新UI
+  renderBattleDialog();
 }
 
 function performBasicAttack() {
@@ -8351,8 +8505,8 @@ function performSkill(skillId) {
   if (!isHeroTurn && !isCompanionTurn) return;
   
   const skill = SKILL_LOOKUP.get(skillId);
-  if (!skill || skill.kind === 'passive') return;
-  
+  if (!skill || skill.kind === 'passive' || skill.kind === 'burst') return;
+
   const attacker = isCompanionTurn ? getActiveCompanion() : state.hero;
   if (!attacker) return;
   
@@ -11192,6 +11346,15 @@ function calculateCritChance(attacker, skill = null) {
 
 // 檢查是否觸發會心一擊
 function checkCrit(attacker, skill = null) {
+  // 魔力爆發：勇者下次法術必定暴擊
+  if (attacker === state.hero && state.ui.battle && state.ui.battle.heroBurstBuffs && state.ui.battle.heroBurstBuffs.guaranteedCrit) {
+    if (skill && skill.flow === 'magic') {
+      state.ui.battle.heroBurstBuffs.guaranteedCrit = false;
+      pushBattleLog(`魔力爆發：必定暴擊！`);
+      return true;
+    }
+  }
+
   // 如果技能有 critChance 且 >= 100（100%），必定會心一擊
   // 注意：critChance 可能是小數格式（0.5 = 50%）或百分比格式（100 = 100%）
   if (skill && skill.critChance !== undefined) {
@@ -12750,6 +12913,21 @@ function executeActionQueue() {
   // 增加回合數
   battle.turnCount = (battle.turnCount || 0) + 1;
 
+  // 爆發技蓄力：每回合 +10%（上限 100%）
+  if (getHeroBurstSkill() && state.hero && state.hero.stats.hp > 0) {
+    state.hero.burstGauge = Math.min(100, (state.hero.burstGauge || 0) + 10);
+  }
+
+  // 鐵壁爆發持續回合 -1
+  if (battle.heroBurstBuffs && battle.heroBurstBuffs.burstDefenderDuration > 0) {
+    battle.heroBurstBuffs.burstDefenderDuration -= 1;
+    if (battle.heroBurstBuffs.burstDefenderDuration <= 0) {
+      battle.heroBurstBuffs.aggroBoost = 0;
+      battle.heroBurstBuffs.damageReduction = 0;
+      pushBattleLog(`鐵壁爆發效果結束。`);
+    }
+  }
+
   // 劍意凝聚被動：每回合累加攻擊力
   if (battle.companionBuffs) {
     (state.companions || []).forEach((companion, index) => {
@@ -13873,10 +14051,15 @@ function determineEnemyAction(enemy, battle) {
       skillMultiplier = 1 + defenderEffects.aggroBoost;
     }
     
+    // 鐵壁爆發：額外增加嘲諷權重
+    if (characterType === 'hero' && battle.heroBurstBuffs && battle.heroBurstBuffs.aggroBoost > 0) {
+      skillMultiplier += battle.heroBurstBuffs.aggroBoost;
+    }
+
     // 計算加權 = 基礎加權 × (1 + 技能加權 + 裝備加權)
     // 裝備的被攻擊率加成已通過 getDefenderPassiveEffects 計算
     let weight = baseWeight * skillMultiplier;
-    
+
     // 檢查是否使用了傷害減免技能（本回合）
     // 如果使用了傷害減免，加權 × 10倍
     if (characterType === 'hero') {
@@ -14031,6 +14214,27 @@ function executeHeroAction(action, resolve) {
       battle.selectedEnemyIndex = null;
     }
     performSkillDirectly(action.skillId);
+
+    // 劍刃爆發 doubleCast：技能再發動一次（不消耗MP）
+    if (battle.heroBurstBuffs && battle.heroBurstBuffs.doubleCast) {
+      battle.heroBurstBuffs.doubleCast = false;
+      pushBattleLog(`劍刃爆發：技能再次發動！`);
+      // 重新設定目標
+      if (skill && skill.aoe) {
+        battle.selectedEnemyIndex = null;
+      } else if (action.targetEnemyIndex !== undefined && action.targetEnemyIndex !== null) {
+        battle.selectedEnemyIndex = action.targetEnemyIndex;
+      } else if (action.target === 'hero') {
+        battle.selectedEnemyIndex = -1;
+      } else if (action.target === 'companion') {
+        battle.selectedEnemyIndex = -2;
+      } else {
+        battle.selectedEnemyIndex = null;
+      }
+      battle._burstFreeCast = true;
+      performSkillDirectly(action.skillId);
+      battle._burstFreeCast = false;
+    }
   } else if (action.type === 'guard') {
     // 執行防守
     performGuardDirectly();
@@ -14038,7 +14242,7 @@ function executeHeroAction(action, resolve) {
     // 使用道具
     useBattleItemDirectly(action.itemId, action.target);
   }
-  
+
   setTimeout(() => {
     // 執行完畢後重置選擇狀態，確保下次可以重新選擇目標
     battle.selectedEnemyIndex = null;
@@ -14476,20 +14680,23 @@ function performSkillDirectly(skillId) {
   }
   
   const skill = SKILL_LOOKUP.get(skillId);
-  if (!skill || skill.kind === 'passive') {
-    pushBattleLog(`無法使用技能：技能不存在或為被動技能。`);
+  if (!skill || skill.kind === 'passive' || skill.kind === 'burst') {
+    pushBattleLog(`無法使用技能：技能不存在或為被動/爆發技能。`);
     return;
   }
-  
+
   const hero = state.hero;
   if (!hero) {
     pushBattleLog(`無法使用技能：勇者不存在。`);
     return;
   }
   
+  // 爆發技二連擊時跳過MP檢查
+  const isBurstFreeCast = battle._burstFreeCast || false;
+
   // 檢查 MP 消耗（光環技能在 useAuraSkill 中處理）
   const mpCost = getSkillMpCost(skill, hero);
-  if (skill.kind !== 'enhance' && hero.stats.mp < mpCost) {
+  if (!isBurstFreeCast && skill.kind !== 'enhance' && hero.stats.mp < mpCost) {
     pushBattleLog(`勇者 MP 不足，無法使用「${skill.name}」！`);
     return;
   }
@@ -14537,27 +14744,33 @@ function performSkillDirectly(skillId) {
     return;
   }
   
-  // 消耗MP（檢查元素共鳴效果）
-  const dynamicMp = calculateDynamicMpCost(skill, hero);
-  let actualMpCost = dynamicMp.mpCost;
-  battle.tempMpCost = dynamicMp.tempMpCost;
-  if (!dynamicMp.tempMpCost) {
-    // 非動態MP：檢查元素共鳴免費施法
-    if (mpCost > 0 && (skill.flow === 'magic' || skill.kind === 'heal')) {
-      const magicEffects = getMagicPassiveEffects(hero);
-      if (magicEffects.freeSpellChance > 0) {
-        const triggerChance = Math.random();
-        if (triggerChance < magicEffects.freeSpellChance) {
-          actualMpCost = 0;
-          pushBattleLog(`元素共鳴：你使用「${skill.name}」時不消耗MP！`);
+  // 消耗MP（爆發技二連擊時跳過）
+  let hpCostAmount = 0;
+  if (isBurstFreeCast) {
+    // 二連擊不消耗MP和HP
+    battle.tempMpCost = 0;
+  } else {
+    const dynamicMp = calculateDynamicMpCost(skill, hero);
+    let actualMpCost = dynamicMp.mpCost;
+    battle.tempMpCost = dynamicMp.tempMpCost;
+    if (!dynamicMp.tempMpCost) {
+      // 非動態MP：檢查元素共鳴免費施法
+      if (mpCost > 0 && (skill.flow === 'magic' || skill.kind === 'heal')) {
+        const magicEffects = getMagicPassiveEffects(hero);
+        if (magicEffects.freeSpellChance > 0) {
+          const triggerChance = Math.random();
+          if (triggerChance < magicEffects.freeSpellChance) {
+            actualMpCost = 0;
+            pushBattleLog(`元素共鳴：你使用「${skill.name}」時不消耗MP！`);
+          }
         }
       }
     }
+    hero.stats.mp -= actualMpCost;
+
+    // 處理捨身斬技能：扣HP並記錄扣掉的HP值
+    hpCostAmount = calculateAndApplyHpCost(skill, hero, '');
   }
-  hero.stats.mp -= actualMpCost;
-  
-  // 處理捨身斬技能：扣HP並記錄扣掉的HP值
-  const hpCostAmount = calculateAndApplyHpCost(skill, hero, '');
   
   // 應用劍士型被動技能：使用劍技後返回MP
   const passiveEffects = getSwordPassiveEffects(hero);
@@ -17327,6 +17540,11 @@ function performEnemyBasicAttackDirectly(enemy, target, enemyIndex) {
       finalDamage = Math.round(finalDamage * (1 - targetSpecEffects.damageTakenReduction));
     }
 
+    // 鐵壁爆發：傷害減免
+    if (battle.heroBurstBuffs && battle.heroBurstBuffs.damageReduction > 0) {
+      finalDamage = Math.round(finalDamage * (1 - battle.heroBurstBuffs.damageReduction));
+    }
+
     // 先扣除護盾
     ({ finalDamage } = absorbShield(target, finalDamage, '護盾'));
 
@@ -17359,7 +17577,12 @@ function performEnemyBasicAttackDirectly(enemy, target, enemyIndex) {
       target.stats.hp = Math.max(0, target.stats.hp - finalDamage);
     }
     pushBattleLog(`${enemy.name} 攻擊造成 ${finalDamage > 0 ? finalDamage : 0} 傷害！`);
-    
+
+    // 爆發技蓄力：被攻擊 +1%
+    if (finalDamage > 0 && getHeroBurstSkill() && state.hero.burstGauge !== undefined) {
+      state.hero.burstGauge = Math.min(100, state.hero.burstGauge + 1);
+    }
+
     // 觸發被攻擊時的被動技能（守護意志等）
     if (finalDamage > 0) {
       triggerOnHitPassiveEffects(target, finalDamage);
@@ -17448,7 +17671,12 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
             battle.tauntTarget = null;
           }
         }
-        
+
+        // 鐵壁爆發：傷害減免
+        if (battle.heroBurstBuffs && battle.heroBurstBuffs.damageReduction > 0) {
+          finalDamage = Math.round(finalDamage * (1 - battle.heroBurstBuffs.damageReduction));
+        }
+
         // 先扣除護盾
         ({ finalDamage } = absorbShield(state.hero, finalDamage, '→ 勇者'));
 
@@ -17464,6 +17692,11 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
         totalDamage += finalDamage;
         const critMsg = isCrit ? '（會心一擊！）' : '';
         pushBattleLog(`→ 對勇者造成 ${finalDamage > 0 ? finalDamage : 0} 傷害${critMsg}`);
+
+        // 爆發技蓄力：被攻擊 +1%
+        if (finalDamage > 0 && getHeroBurstSkill() && state.hero.burstGauge !== undefined) {
+          state.hero.burstGauge = Math.min(100, state.hero.burstGauge + 1);
+        }
 
         // 觸發被攻擊時的被動技能（守護意志等）
         if (finalDamage > 0) {
@@ -17549,7 +17782,12 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
             battle.tauntTarget = null;
           }
         }
-        
+
+        // 鐵壁爆發：傷害減免
+        if (battle.heroBurstBuffs && battle.heroBurstBuffs.damageReduction > 0) {
+          finalDamage = Math.round(finalDamage * (1 - battle.heroBurstBuffs.damageReduction));
+        }
+
         ({ finalDamage } = absorbShield(target, finalDamage, '護盾'));
       } else {
         const activeCompanion = getActiveCompanion();
@@ -17587,6 +17825,11 @@ function performEnemySkillDirectly(enemy, skill, target, enemyIndex) {
       const activeCompanion = getActiveCompanion();
       const targetName = target === state.hero ? '勇者' : (target === activeCompanion ? target.name : target.name);
       pushBattleLog(`${enemy.name} 施放「${skill.name}」，對${targetName}造成 ${finalDamage} 傷害！${critMsg}`);
+
+      // 爆發技蓄力：勇者被攻擊 +1%
+      if (target === state.hero && finalDamage > 0 && getHeroBurstSkill() && state.hero.burstGauge !== undefined) {
+        state.hero.burstGauge = Math.min(100, state.hero.burstGauge + 1);
+      }
 
       // 觸發被攻擊時的被動技能（守護意志等）
       if (finalDamage > 0) {
@@ -21514,6 +21757,18 @@ function checkLevelUp() {
       hero.attributes[attr.id] = (hero.attributes[attr.id] || 0) + randomGain;
     });
     
+    // 15級自動習得爆發技
+    if (hero.stats.level === 15) {
+      const burstId = HERO_BURST_SKILL_IDS[hero.heroType];
+      if (burstId) {
+        const burstSkill = SKILL_LOOKUP.get(burstId);
+        if (burstSkill && !hero.skills.includes(burstId)) {
+          hero.skills.push(burstId);
+          pushLog(`升到 Lv 15，自動習得爆發技「${burstSkill.name}」！`);
+        }
+      }
+    }
+
     // 20級自動習得復活術
     if (hero.stats.level === 20) {
       const reviveSkill = SKILL_LOOKUP.get('revive_companion');
@@ -22238,6 +22493,9 @@ function getRandomSkillByFlow(flow, heroLevel, skillType = null, hero = null) {
   
   // 從技能鏈中篩選可學習的技能
   SKILL_CHAINS.filter((chain) => chain.flow === flow).forEach((chain) => {
+    // 排除同伴流派專屬技能鏈（spec_ 開頭或被動專屬技能鏈）
+    if (chain.id.startsWith('spec_') || chain.id.endsWith('_passive_chain')) return;
+
     // 找出該技能鏈中已經學會的最高等級技能
     let maxLearnedTier = 0;
     chain.steps.forEach((step) => {
@@ -22245,14 +22503,17 @@ function getRandomSkillByFlow(flow, heroLevel, skillType = null, hero = null) {
         maxLearnedTier = Math.max(maxLearnedTier, step.tier);
       }
     });
-    
+
     chain.steps.forEach((step) => {
+      // 排除爆發技（爆發技只能自動習得）
+      if (step.kind === 'burst') return;
+
       // 檢查等級要求
       if (heroLevel < step.requiredLevel) return;
-      
+
       // 檢查是否已擁有
       if (owned.has(step.id)) return;
-      
+
       // 檢查是否已經學會了更高等級的技能（不應該出現更低等級的技能）
       if (maxLearnedTier > 0 && step.tier < maxLearnedTier) {
         return; // 已經學會了更高等級的技能，不應該再出現低等級的技能
@@ -22920,7 +23181,7 @@ function isSkillEnabled(skillId, companion = null) {
 function getActiveSkills() {
   return state.hero.skills
     .map((id) => SKILL_LOOKUP.get(id))
-    .filter((skill) => skill && skill.kind && skill.kind !== 'passive' && isSkillEnabled(skill.id));
+    .filter((skill) => skill && skill.kind && skill.kind !== 'passive' && skill.kind !== 'burst' && isSkillEnabled(skill.id));
 }
 
 // 獲取同伴的主動技能
@@ -23299,6 +23560,27 @@ function autoLevelUpToTarget(targetLevel) {
       hero.attributes[attr.id] = (hero.attributes[attr.id] || 0) + randomGain;
     });
     
+    // 15級自動習得爆發技
+    if (currentLevel === 15) {
+      const burstId = HERO_BURST_SKILL_IDS[hero.heroType];
+      if (burstId) {
+        const burstSkill = SKILL_LOOKUP.get(burstId);
+        if (burstSkill && !hero.skills.includes(burstId)) {
+          hero.skills.push(burstId);
+          pushLog(`自動升級到 Lv 15，習得爆發技「${burstSkill.name}」！`);
+        }
+      }
+    }
+
+    // 20級自動習得復活術
+    if (currentLevel === 20) {
+      const reviveSkill = SKILL_LOOKUP.get('revive_companion');
+      if (reviveSkill && !hero.skills.includes('revive_companion')) {
+        learnSkill(reviveSkill);
+        pushLog(`自動升級到 Lv 20，習得「${reviveSkill.name}」！`);
+      }
+    }
+
     // 每兩級獲得一個技能（自動選擇）
     if (currentLevel % 2 === 0 && currentLevel >= 2) {
       const skillOptions = rollSkillOptions();
@@ -23437,12 +23719,34 @@ function autoProcessCompanionUpgrade(compUpgrade) {
     
     compUpgrade.skillSelections.forEach(selection => {
       if (!selection.selected && selection.options.length > 0) {
+
+        // 流派分歧：隨機選擇一個分支
+        if (selection.type === 'specialization') {
+          const spec = selection.options[Math.floor(Math.random() * selection.options.length)];
+          if (spec) {
+            companion.specialization = spec.id;
+            // 學被動
+            const passiveSkill = SKILL_LOOKUP.get(spec.passiveId);
+            if (passiveSkill) learnCompanionSkill(companion, passiveSkill);
+            // 學主動 tier 1
+            const activeChain = SKILL_CHAINS.find(c => c.id === spec.activeChainId);
+            if (activeChain && activeChain.steps[0]) {
+              const tier1 = { ...activeChain.steps[0], flow: activeChain.flow, chainId: activeChain.id, aoe: activeChain.aoe || false };
+              learnCompanionSkill(companion, tier1);
+            }
+            selection.selected = true;
+            selection.selectedSkillId = spec.id;
+            pushLog(`${companion.name} 覺醒為「${spec.name}」！`);
+          }
+          return;
+        }
+
         // 過濾可用技能
         const availableSkills = selection.options.filter(skill => {
           const heroLevel = companion.stats.level;
           return heroLevel >= (skill.requiredLevel || 0);
         });
-        
+
         if (availableSkills.length > 0) {
           let selectedSkill = null;
           // 70%機率選擇該流派的技能
@@ -23455,12 +23759,12 @@ function autoProcessCompanionUpgrade(compUpgrade) {
               selectedSkill = primaryFlowSkills[Math.floor(Math.random() * primaryFlowSkills.length)];
             }
           }
-          
+
           // 如果沒有找到該流派的技能，或30%機率，隨機選擇
           if (!selectedSkill) {
             selectedSkill = availableSkills[Math.floor(Math.random() * availableSkills.length)];
           }
-          
+
           if (selectedSkill) {
           learnCompanionSkill(companion, selectedSkill);
           selection.selected = true;

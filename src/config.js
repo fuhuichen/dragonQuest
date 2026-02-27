@@ -1,12 +1,12 @@
 // 遊戲配置參數
 window.GameData = window.GameData || {};
 window.GameData.GAME_CONFIG = {
-  initialCompanionCount: 0, // 一開始勇者的同伴數量
+  initialCompanionCount: 1, // 一開始勇者的同伴數量
   maxCompanionCount: 3, // 最大同伴數量上限
-  defaultTargetLevel: 1, // 預設目標等級
+  defaultTargetLevel: 16, // 預設目標等級
   companionAdvancementLevel: 40, // 伙伴可以進階職業的等級
-  startStage:1, // 起始階段（1-6）
-  startNodeIndex:0, // 起始節點索引（0-19）
+  startStage:2, // 起始階段（1-6）
+  startNodeIndex:8, // 起始節點索引（0-19）
   // 成長配置
   heroGrowthMin: 1, // 主角每等級基本成長最小值
   heroGrowthMin: 3.0, // 主角每等級基本成長最大值

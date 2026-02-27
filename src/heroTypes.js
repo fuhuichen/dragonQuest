@@ -61,7 +61,7 @@ window.GameData.HERO_TYPES = {
     levelUpBonus: {
       recovery: 3.5,
       magic: 1.2,
-      attack: 1.8,
+      attack: 2.3,
       defense: 1.5,
       vitality: 2.2,
     },
@@ -193,7 +193,7 @@ window.GameData.COMPANION_TYPES = {
     initialMpBonus: 0.6,
     initialSkills: ['enhanced_heal_1', 'heal_1'], // 聖擊、治療術
     levelUpBonus: {
-      attack: 3.0,
+      attack: 3.5,
       recovery: 4.0,
       defense: 2.8,
       magic: 1.5,

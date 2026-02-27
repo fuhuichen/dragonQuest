@@ -3717,6 +3717,91 @@ const SKILL_CHAINS = [
       },
     ],
   },
+  // ===== 勇者爆發技（Lv15 自動習得，戰鬥中蓄力滿 100% 施放） =====
+  {
+    flow: 'sword',
+    id: 'burst_sword',
+    aoe: false,
+    steps: [
+      {
+        id: 'burst_sword_1',
+        tier: 1,
+        name: '劍刃爆發',
+        description: '蓄力滿後施放：下次技能發動兩次（不消耗額外MP）。',
+        kind: 'burst',
+        mpCost: 0,
+        requiredLevel: 15,
+      },
+    ],
+  },
+  {
+    flow: 'defender',
+    id: 'burst_defender',
+    aoe: false,
+    steps: [
+      {
+        id: 'burst_defender_1',
+        tier: 1,
+        name: '鐵壁爆發',
+        description: '蓄力滿後施放：嘲諷+30%、傷害減免20%，持續3回合。',
+        kind: 'burst',
+        mpCost: 0,
+        requiredLevel: 15,
+        burstAggroBoost: 0.30,
+        burstDamageReduction: 0.20,
+        burstDuration: 3,
+      },
+    ],
+  },
+  {
+    flow: 'magic',
+    id: 'burst_magic',
+    aoe: false,
+    steps: [
+      {
+        id: 'burst_magic_1',
+        tier: 1,
+        name: '魔力爆發',
+        description: '蓄力滿後施放：下次法術必定暴擊。',
+        kind: 'burst',
+        mpCost: 0,
+        requiredLevel: 15,
+      },
+    ],
+  },
+  {
+    flow: 'recovery',
+    id: 'burst_recovery',
+    aoe: false,
+    steps: [
+      {
+        id: 'burst_recovery_1',
+        tier: 1,
+        name: '聖光爆發',
+        description: '蓄力滿後施放：全體回復至50% maxHP，復活死者至50%。',
+        kind: 'burst',
+        mpCost: 0,
+        requiredLevel: 15,
+      },
+    ],
+  },
+  {
+    flow: 'agility',
+    id: 'burst_agility',
+    aoe: false,
+    steps: [
+      {
+        id: 'burst_agility_1',
+        tier: 1,
+        name: '影速爆發',
+        description: '蓄力滿後施放：隨機攻擊8下，全部必定暴擊。',
+        kind: 'burst',
+        mpCost: 0,
+        requiredLevel: 15,
+        burstHitCount: 8,
+      },
+    ],
+  },
 ];
   window.GameData = window.GameData || {};
   window.GameData.SKILL_CHAINS = SKILL_CHAINS;
