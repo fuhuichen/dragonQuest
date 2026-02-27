@@ -13847,30 +13847,51 @@ function determineCompanionAction(companion) {
   }
   
   // 1.5. 檢查輔助技能（support類型，如護盾等）
-  const supportSkills = availableSkills.filter(skill => 
+  // 如果自己已經有護盾，就不再使用護盾技能
+  const hasShield = companion.stats.shield && companion.stats.shield > 0;
+  const supportSkills = availableSkills.filter(skill =>
     skill.kind === 'support' && skill.damageReduction === undefined
   );
-  if (supportSkills.length > 0) {
+  if (supportSkills.length > 0 && !hasShield) {
     // 輔助技能使用機率基於 skillUseChance
-    const baseSkillUseChance = 0.8;
+    const baseSkillUseChance = 0.35;
     let skillUseChance = baseSkillUseChance;
     if (typeof aiBehavior.skillUseChance === 'number') {
       const delta = aiBehavior.skillUseChance - 0.5; // 0.5視為中立
       skillUseChance = baseSkillUseChance + delta;
     }
     skillUseChance = Math.max(0, Math.min(0.99, skillUseChance));
-    
+
     const supportRoll = Math.random();
     if (supportRoll < skillUseChance) {
       // 隨機選擇一個輔助技能使用
       const selectedSupportSkill = supportSkills[Math.floor(Math.random() * supportSkills.length)];
-      // 輔助技能通常對自己或隊友使用，這裡簡化為對自己使用
-      return {
-        type: 'skill',
-        skillId: selectedSupportSkill.id,
-        target: 'companion',
-        companionIndex: state.companions.indexOf(companion),
-      };
+      // 全體護盾：檢查是否大部分隊友都已有護盾，如果是則跳過
+      if (selectedSupportSkill.aoe) {
+        const allAlive = [state.hero, ...activeCompanions].filter(c => c.stats.hp > 0);
+        const shieldedCount = allAlive.filter(c => c.stats.shield && c.stats.shield > 0).length;
+        if (shieldedCount >= Math.ceil(allAlive.length / 2)) {
+          // 大部分人已有護盾，跳過
+        } else {
+          return {
+            type: 'skill',
+            skillId: selectedSupportSkill.id,
+            target: null,
+          };
+        }
+      } else {
+        // 單體護盾：找一個沒有護盾的隊友施放
+        const allAlive = [state.hero, ...activeCompanions].filter(c => c.stats.hp > 0);
+        const noShieldTargets = allAlive.filter(c => !c.stats.shield || c.stats.shield <= 0);
+        if (noShieldTargets.length > 0) {
+          const target = noShieldTargets[Math.floor(Math.random() * noShieldTargets.length)];
+          if (target === state.hero) {
+            return { type: 'skill', skillId: selectedSupportSkill.id, target: 'hero' };
+          } else {
+            return { type: 'skill', skillId: selectedSupportSkill.id, target: 'companion', companionIndex: state.companions.indexOf(target) };
+          }
+        }
+      }
     }
   }
   
